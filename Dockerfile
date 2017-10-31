@@ -5,6 +5,6 @@ ENV WWW_DIR /var/www/html/pflegebedarf
 
 COPY schema $LIB_DIR/schema
 COPY api $WWW_DIR/api
-COPY ui $WWW_DIR/ui
+COPY ui/html $WWW_DIR/ui
 
 RUN chown -R www-data:www-data $LIB_DIR $WWW_DIR

@@ -26,6 +26,12 @@ SQL;
 
     $pdo->exec($bestellungen);
 
+    $bestellungen_zeitstempel = <<<SQL
+CREATE INDEX bestellungen_zeitstempel ON bestellungen (zeitstempel);
+SQL;
+
+    $pdo->exec($bestellungen_zeitstempel);
+
     $bestellungen_posten = <<<SQL
 CREATE TABLE bestellungen_posten (
     bestellung_id INTEGER,

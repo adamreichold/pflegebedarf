@@ -2,6 +2,37 @@
 
 require '/var/lib/pflegebedarf/schema/schema.php';
 
+function int_bereinigen(&$val)
+{
+    $val = intval($val);
+}
+
+function posten_bereinigen($posten)
+{
+    if (isset($posten->bestellung_id))
+    {
+        int_bereinigen($posten->bestellung_id);
+    }
+
+    int_bereinigen($posten->pflegemittel_id);
+    int_bereinigen($posten->menge);
+}
+
+function bestellung_bereinigen($bestellung)
+{
+    if (isset($bestellung->id))
+    {
+        int_bereinigen($bestellung->id);
+    }
+
+    int_bereinigen($bestellung->zeitstempel);
+
+    if (isset($bestellung->posten))
+    {
+        array_walk($bestellung->posten, posten_bereinigen);
+    }
+}
+
 function bestellungen_laden()
 {
     global $pdo;
@@ -14,24 +45,27 @@ function bestellungen_laden()
 
     while ($row = $stmt->fetch())
     {
-        $bestellung_id = $row->bestellung_id;
-        unset($row->bestellung_id);
+        posten_bereinigen($row);
 
-        if (isset($posten[$bestellung_id]))
+        if (isset($posten[$row->bestellung_id]))
         {
-            $posten[$bestellung_id][] = $row;
+            $posten[$row->bestellung_id][] = $row;
         }
         else
         {
-            $posten[$bestellung_id] = [$row];
+            $posten[$row->bestellung_id] = [$row];
         }
+
+        unset($row->bestellung_id);
     }
 
-    $stmt = $pdo->query('SELECT * FROM bestellungen');
+    $stmt = $pdo->query('SELECT * FROM bestellungen ORDER BY zeitstempel DESC');
     $rows = $stmt->fetchAll();
 
     foreach ($rows as $row)
     {
+        bestellung_bereinigen($row);
+
         if (isset($posten[$row->id]))
         {
             $row->posten = $posten[$row->id];
@@ -51,6 +85,7 @@ function bestellung_speichern()
     global $pdo;
 
     $bestellung = json_decode(file_get_contents('php://input'));
+    bestellung_bereinigen($bestellung);
 
     $pdo->beginTransaction();
 

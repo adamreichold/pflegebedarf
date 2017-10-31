@@ -2,6 +2,19 @@
 
 require '/var/lib/pflegebedarf/schema/schema.php';
 
+function int_bereinigen(&$val)
+{
+    $val = intval($val);
+}
+
+function pflegemittel_bereinigen($pflegemittel)
+{
+    if (isset($pflegemittel->id))
+    {
+        int_bereinigen($pflegemittel->id);
+    }
+}
+
 function pflegemittel_laden()
 {
     global $pdo;
@@ -13,6 +26,8 @@ function pflegemittel_laden()
 
     $pdo->commit();
 
+    array_walk($rows, pflegemittel_bereinigen);
+
     header('Content-Type: application/json');
     print(json_encode($rows));
 }
@@ -22,6 +37,7 @@ function pflegemittel_speichern()
     global $pdo;
 
     $pflegemittel = json_decode(file_get_contents('php://input'));
+    pflegemittel_bereinigen($pflegemittel);
 
     $pdo->beginTransaction();
 
