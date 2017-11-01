@@ -1,30 +1,26 @@
 <?php
 
-require '/var/lib/pflegebedarf/schema/schema.php';
-
-function int_bereinigen(&$val)
-{
-    $val = intval($val);
-}
+require '/var/lib/pflegebedarf/schema.php';
+require '/var/lib/pflegebedarf/api.php';
 
 function pflegemittel_bereinigen($pflegemittel)
 {
     if (isset($pflegemittel->id))
     {
-        int_bereinigen($pflegemittel->id);
+        bereinigen($pflegemittel->id, intval);
     }
+
+    bereinigen($pflegemittel->bezeichnung, strval);
+    bereinigen($pflegemittel->einheit, strval);
+    bereinigen($pflegemittel->wird_verwendet, boolval);
 }
 
 function pflegemittel_laden()
 {
     global $pdo;
 
-    $pdo->beginTransaction();
-
     $stmt = $pdo->query('SELECT * FROM pflegemittel');
     $rows = $stmt->fetchAll();
-
-    $pdo->commit();
 
     array_walk($rows, pflegemittel_bereinigen);
 
@@ -36,57 +32,33 @@ function pflegemittel_speichern()
 {
     global $pdo;
 
-    $pflegemittel = json_decode(file_get_contents('php://input'));
-    pflegemittel_bereinigen($pflegemittel);
+    $rows = json_decode(file_get_contents('php://input'));
 
-    $pdo->beginTransaction();
-
-    if (isset($pflegemittel->id))
+    if ($rows === NULL || !is_array($rows))
     {
-        $stmt = $pdo->prepare('UPDATE pflegemittel SET bezeichnung = ?, einheit = ? WHERE id = ?');
-        $stmt->bindParam(3, $pflegemittel->id);
-    }
-    else
-    {
-        $stmt = $pdo->prepare('INSERT INTO pflegemittel (bezeichnung, einheit) VALUES (?, ?)');
+        die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    $stmt->bindParam(1, $pflegemittel->bezeichnung);
-    $stmt->bindParam(2, $pflegemittel->einheit);
-
-    $stmt->execute();
-
-    $pdo->commit();
-}
-
-function anfrage_verarbeiten($request_method)
-{
-    global $pdo;
-
-    try
+    foreach ($rows as $row)
     {
-        switch ($request_method)
+        pflegemittel_bereinigen($row);
+
+        if (isset($row->id))
         {
-            case 'GET':
-                pflegemittel_laden();
-                break;
-            case 'POST':
-                pflegemittel_speichern();
-                break;
-            default:
-                http_response_code(405);
-                break;
+            $stmt = $pdo->prepare('UPDATE pflegemittel SET bezeichnung = ?, einheit = ?, wird_verwendet = ? WHERE id = ?');
+            $stmt->bindParam(4, $row->id);
         }
-    }
-    catch (PDOException $e)
-    {
-        if ($pdo->inTransaction())
+        else
         {
-            $pdo->rollback();
+            $stmt = $pdo->prepare('INSERT INTO pflegemittel (bezeichnung, einheit, wird_verwendet) VALUES (?, ?, ?)');
         }
 
-        die('Fehler bei Zugriff auf Datenbank: ' . $e->getMessage());
+        $stmt->bindParam(1, $row->bezeichnung);
+        $stmt->bindParam(2, $row->einheit);
+        $stmt->bindParam(3, $row->wird_verwendet);
+
+        $stmt->execute();
     }
 }
 
-anfrage_verarbeiten($_SERVER['REQUEST_METHOD']);
+anfrage_verarbeiten(pflegemittel_laden, pflegemittel_speichern);

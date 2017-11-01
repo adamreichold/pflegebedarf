@@ -1,4 +1,4 @@
-module Api exposing (Pflegemittel, Bestellung, pflegemittelLaden, bestellungenLaden)
+module Api exposing (Pflegemittel, Bestellung, pflegemittelLaden, pflegemittelSpeichern, bestellungenLaden)
 
 import Http
 import Json.Decode as Decode
@@ -11,9 +11,10 @@ import Debug
 
 
 type alias Pflegemittel =
-    { id : Int
+    { id : Maybe Int
     , bezeichnung : String
     , einheit : String
+    , wirdVerwendet : Bool
     }
 
 type alias BestellungPosten =
@@ -39,10 +40,20 @@ decodeZeitstempel =
 
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
-    Decode.map3 Pflegemittel
-        (Decode.field "id" Decode.int)
+    Decode.map4 Pflegemittel
+        (Decode.map Just <| Decode.field "id" Decode.int)
         (Decode.field "bezeichnung" Decode.string)
         (Decode.field "einheit" Decode.string)
+        (Decode.field "wird_verwendet" Decode.bool)
+
+encodePflegemittel : Pflegemittel -> Encode.Value
+encodePflegemittel pflegemittel =
+    Encode.object
+        [ ("id", Maybe.withDefault Encode.null <| Maybe.map Encode.int pflegemittel.id)
+        , ("bezeichnung", Encode.string pflegemittel.bezeichnung)
+        , ("einheit", Encode.string pflegemittel.einheit)
+        , ("wird_verwendet", Encode.bool pflegemittel.wirdVerwendet)
+        ]
 
 decodeBestellungPosten : Decode.Decoder BestellungPosten
 decodeBestellungPosten =
@@ -69,6 +80,13 @@ objekteLaden : (List a -> msg) -> String -> Decode.Decoder (List a) -> Cmd msg
 objekteLaden msg url decoder =
     Http.send (msg << fehlerBehandeln) (Http.get url decoder)
 
+objekteSpeichern : (List a -> msg) -> String -> Decode.Decoder (List a) -> (List a -> Encode.Value) -> List a -> Cmd msg
+objekteSpeichern msg url decoder encoder objekte =
+    let
+        body = Http.jsonBody <| encoder objekte
+    in
+        Http.send (msg << fehlerBehandeln) (Http.post url body decoder)
+
 pflegemittelLaden : (List Pflegemittel -> msg) -> Cmd msg
 pflegemittelLaden msg =
     let
@@ -76,6 +94,15 @@ pflegemittelLaden msg =
         decoder = Decode.list decodePflegemittel
     in
         objekteLaden msg url decoder
+
+pflegemittelSpeichern : (List Pflegemittel -> msg) -> List Pflegemittel -> Cmd msg
+pflegemittelSpeichern msg pflegemittel =
+    let
+        url = "../api/pflegemittel.php"
+        decoder = Decode.list decodePflegemittel
+        encoder = Encode.list << List.map encodePflegemittel
+    in
+        objekteSpeichern msg url decoder encoder pflegemittel
 
 bestellungenLaden : (List Bestellung -> msg) -> Cmd msg
 bestellungenLaden msg =

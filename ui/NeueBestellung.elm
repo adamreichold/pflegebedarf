@@ -21,22 +21,22 @@ type alias Model =
     }
 
 type Msg
-    = NeuePflegemittel (List Pflegemittel)
-    | NeueBestellungen (List Bestellung)
+    = PflegemittelLaden (List Pflegemittel)
+    | BestellungenLaden (List Bestellung)
 
 init : (Model, Cmd Msg)
 init =
     ( Model [] [] Nothing
-    , pflegemittelLaden NeuePflegemittel
+    , pflegemittelLaden PflegemittelLaden
     )
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
-        NeuePflegemittel pflegemittel ->
-            ({ model | pflegemittel = pflegemittel }, bestellungenLaden NeueBestellungen)
+        PflegemittelLaden pflegemittel ->
+            ({ model | pflegemittel = pflegemittel }, bestellungenLaden BestellungenLaden)
 
-        NeueBestellungen bestellungen ->
+        BestellungenLaden bestellungen ->
             ({ model | bestellungen = bestellungen, letzteBestellung = List.head bestellungen }, Cmd.none)
 
 view : Model -> Html Msg

@@ -1,35 +1,64 @@
 <?php
 
-require '/var/lib/pflegebedarf/schema/schema.php';
+require '/var/lib/pflegebedarf/schema.php';
+require '/var/lib/pflegebedarf/api.php';
 
-function int_bereinigen(&$val)
+function bestellungen_posten_bereinigen($posten)
 {
-    $val = intval($val);
+    bereinigen($posten->pflegemittel_id, intval);
+    bereinigen($posten->menge, intval);
 }
 
-function posten_bereinigen($posten)
+function bestellungen_posten_laden($bestellung_id)
 {
-    if (isset($posten->bestellung_id))
+   global $pdo;
+
+   $stmt = $pdo->prepare('SELECT pflegemittel_id, menge FROM bestellungen_posten WHERE bestellung_id = ?');
+
+   $stmt->bindParam(1, $bestellung_id);
+
+   $stmt->execute();
+
+   return $stmt->fetchAll();
+}
+
+function bestellungen_posten_speichern($bestellung_id, $rows)
+{
+    global $pdo;
+
+    $stmt = $pdo->prepare('INSERT INTO bestellungen_posten VALUES (?, ?, ?)');
+
+    $stmt->bindParam(1, $bestellung_id);
+    $stmt->bindParam(2, $pflegemittel_id);
+    $stmt->bindParam(3, $menge);
+
+    foreach($rows as $row)
     {
-        int_bereinigen($posten->bestellung_id);
-    }
+        $pflegemittel_id = $row->pflegemittel_id;
+        $menge = $row->menge;
 
-    int_bereinigen($posten->pflegemittel_id);
-    int_bereinigen($posten->menge);
+        $stmt->execute();
+    }
 }
 
-function bestellung_bereinigen($bestellung)
+function bestellungen_bereinigen($bestellung)
 {
     if (isset($bestellung->id))
     {
-        int_bereinigen($bestellung->id);
+        bereinigen($bestellung->id, intval);
     }
 
-    int_bereinigen($bestellung->zeitstempel);
+    bereinigen($bestellung->zeitstempel, intval);
+    bereinigen($bestellung->empfaenger, strval);
+    bereinigen($bestellung->nachricht, strval);
 
-    if (isset($bestellung->posten))
+    if (isset($bestellung->posten) && is_array($bestellung->posten))
     {
-        array_walk($bestellung->posten, posten_bereinigen);
+        array_walk($bestellung->posten, bestellungen_posten_bereinigen);
+    }
+    else
+    {
+        $bestellung->posten = [];
     }
 }
 
@@ -37,129 +66,44 @@ function bestellungen_laden()
 {
     global $pdo;
 
-    $posten = [];
+    $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 1;
 
-    $pdo->beginTransaction();
-
-    $stmt = $pdo->query('SELECT * FROM bestellungen_posten');
-
-    while ($row = $stmt->fetch())
-    {
-        posten_bereinigen($row);
-
-        if (isset($posten[$row->bestellung_id]))
-        {
-            $posten[$row->bestellung_id][] = $row;
-        }
-        else
-        {
-            $posten[$row->bestellung_id] = [$row];
-        }
-
-        unset($row->bestellung_id);
-    }
-
-    $stmt = $pdo->query('SELECT * FROM bestellungen ORDER BY zeitstempel DESC');
+    $stmt = $pdo->query("SELECT * FROM bestellungen ORDER BY zeitstempel DESC LIMIT {$limit}");
     $rows = $stmt->fetchAll();
 
     foreach ($rows as $row)
     {
-        bestellung_bereinigen($row);
+        $row->posten = bestellungen_posten_laden($row->id);
 
-        if (isset($posten[$row->id]))
-        {
-            $row->posten = $posten[$row->id];
-        }
-        else
-        {
-            $row->posten = [];
-        }
+        bestellungen_bereinigen($row);
     }
 
     header('Content-Type: application/json');
     print(json_encode($rows));
 }
 
-function bestellung_speichern()
+function bestellungen_speichern()
 {
     global $pdo;
 
-    $bestellung = json_decode(file_get_contents('php://input'));
-    bestellung_bereinigen($bestellung);
+    $row = json_decode(file_get_contents('php://input'));
 
-    $pdo->beginTransaction();
-
-    if (isset($bestellung->id))
+    if ($row === NULL || !is_object($row))
     {
-        $stmt = $pdo->prepare('UPDATE bestellungen SET zeitstempel = ?, empfaenger = ? WHERE id = ?');
-        $stmt->bindParam(3, $bestellung->id);
-    }
-    else
-    {
-        $stmt = $pdo->prepare('INSERT INTO bestellungen (zeitstempel, empfaenger) VALUES (?, ?)');
+        die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    $stmt->bindParam(1, $bestellung->zeitstempel);
-    $stmt->bindParam(2, $bestellung->empfaenger);
+    bestellungen_bereinigen($row);
+
+    $stmt = $pdo->prepare('INSERT INTO bestellungen (zeitstempel, empfaenger, nachricht) VALUES (?, ?, ?)');
+
+    $stmt->bindParam(1, $row->zeitstempel);
+    $stmt->bindParam(2, $row->empfaenger);
+    $stmt->bindParam(3, $row->nachricht);
 
     $stmt->execute();
 
-    if (!isset($bestellung->id))
-    {
-        $bestellung->id = $pdo->lastInsertId();
-    }
-
-    $stmt = $pdo->prepare('DELETE FROM bestellungen_posten WHERE bestellung_id = ?');
-
-    $stmt->bindParam(1, $bestellung->id);
-
-    $stmt->execute();
-
-    $stmt = $pdo->prepare('INSERT INTO bestellungen_posten VALUES (?, ?, ?)');
-
-    $stmt->bindParam(1, $bestellung->id);
-    $stmt->bindParam(2, $pflegemittel_id);
-    $stmt->bindParam(3, $menge);
-
-    foreach($bestellung->posten as $posten)
-    {
-        $pflegemittel_id = $posten->pflegemittel_id;
-        $menge = $posten->menge;
-
-        $stmt->execute();
-    }
-
-    $pdo->commit();
+    bestellungen_posten_speichern($pdo->lastInsertId(), $row->posten);
 }
 
-function anfrage_verarbeiten($request_method)
-{
-    global $pdo;
-
-    try
-    {
-        switch ($request_method)
-        {
-            case 'GET':
-                bestellungen_laden();
-                break;
-            case 'POST':
-                bestellung_speichern();
-                break;
-            default:
-                http_response_code(405);
-                break;
-        }
-    }
-    catch (PDOException $e)
-    {
-        if ($pdo->inTransaction())
-        {
-            $pdo->rollback();
-        }
-
-        die('Fehler bei Zugriff auf Datenbank: ' . $e->getMessage());
-    }
-}
-
-anfrage_verarbeiten($_SERVER['REQUEST_METHOD']);
+anfrage_verarbeiten(bestellungen_laden, bestellungen_speichern);
