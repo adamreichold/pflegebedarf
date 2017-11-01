@@ -221,5 +221,5 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
             , td [] [ text pflegemittel.einheit ]
             , td [] [ text mittlere ]
             , td [] [ text letzte ]
-            , td [] [ input [ type_ "text", value neue, onInput <| curry MengeAendern <| pflegemittel.id ] [] ]
+            , td [] [ input [ type_ "number", Html.Attributes.min "0", value neue, onInput <| curry MengeAendern <| pflegemittel.id ] [] ]
             ]
