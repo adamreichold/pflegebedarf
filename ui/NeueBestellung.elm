@@ -4,8 +4,6 @@ import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLad
 import Html exposing (Html, form, p, table, tr, th, td, text, input, textarea)
 import Html.Attributes exposing (type_, placeholder, value, disabled)
 import Html.Events exposing (onSubmit, onInput)
-import String
-import List
 import Dict exposing (Dict)
 import Date exposing (Date)
 import Task

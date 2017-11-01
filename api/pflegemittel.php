@@ -12,6 +12,7 @@ function pflegemittel_bereinigen($pflegemittel)
 
     bereinigen($pflegemittel->bezeichnung, strval);
     bereinigen($pflegemittel->einheit, strval);
+    bereinigen($pflegemittel->pzn_oder_ref, strval);
     bereinigen($pflegemittel->wird_verwendet, boolval);
 }
 
@@ -45,17 +46,18 @@ function pflegemittel_speichern()
 
         if (isset($row->id))
         {
-            $stmt = $pdo->prepare('UPDATE pflegemittel SET bezeichnung = ?, einheit = ?, wird_verwendet = ? WHERE id = ?');
-            $stmt->bindParam(4, $row->id);
+            $stmt = $pdo->prepare('UPDATE pflegemittel SET bezeichnung = ?, einheit = ?, pzn_oder_ref = ?, wird_verwendet = ? WHERE id = ?');
+            $stmt->bindParam(5, $row->id);
         }
         else
         {
-            $stmt = $pdo->prepare('INSERT INTO pflegemittel (bezeichnung, einheit, wird_verwendet) VALUES (?, ?, ?)');
+            $stmt = $pdo->prepare('INSERT INTO pflegemittel (bezeichnung, einheit, pzn_oder_ref, wird_verwendet) VALUES (?, ?, ?, ?)');
         }
 
         $stmt->bindParam(1, $row->bezeichnung);
         $stmt->bindParam(2, $row->einheit);
-        $stmt->bindParam(3, $row->wird_verwendet);
+        $stmt->bindParam(3, $row->pzn_oder_ref);
+        $stmt->bindParam(4, $row->wird_verwendet);
 
         $stmt->execute();
     }

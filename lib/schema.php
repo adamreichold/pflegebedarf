@@ -90,6 +90,25 @@ SQL;
     $pdo->commit();
 }
 
+function schema_v3_migrieren()
+{
+    global $pdo;
+
+    error_log('Datenbank v3 wird auf v4 migriert...');
+
+    $pdo->beginTransaction();
+
+    $pflegemittel = <<<SQL
+ALTER TABLE pflegemittel ADD COLUMN pzn_oder_ref TEXT
+SQL;
+
+    $pdo->exec($pflegemittel);
+
+    $pdo->exec('PRAGMA user_version = 4');
+
+    $pdo->commit();
+}
+
 function schema_pruefen()
 {
     global $pdo;
@@ -104,8 +123,9 @@ function schema_pruefen()
             schema_v1_migrieren();
         case 2:
             schema_v2_migrieren();
-            break;
         case 3:
+            schema_v3_migrieren();
+        case 4:
             break;
         default:
             die("Unbekannte Version {$user_version} der Datenbank.");
