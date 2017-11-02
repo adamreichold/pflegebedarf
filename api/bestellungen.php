@@ -3,13 +3,71 @@
 require '/usr/lib/pflegebedarf/schema.php';
 require '/usr/lib/pflegebedarf/api.php';
 
-function bestellungen_posten_bereinigen($posten)
+function pflegemittel_laden($pflegemittel_id)
+{
+    global $pdo;
+
+    $stmt = $pdo->prepare('SELECT * FROM pflegemittel WHERE id = ?');
+
+    $stmt->bindParam(1, $pflegemittel_id);
+
+    $stmt->execute();
+
+    return $stmt->fetch();
+}
+
+function bestellung_versenden($bestellung)
+{
+    $konfiguration = parse_ini_file('/usr/lib/pflegebedarf/versenden.ini', false);
+
+    if ($konfiguration === FALSE)
+    {
+        die('Konnte Konfiguration für Versand nicht verarbeiten.');
+    }
+
+    $datum = date('d.m.Y', $bestellung->zeitstempel);
+    $betreff = str_replace('{datum}', $datum, $konfiguration['betreff']);
+
+    $kopfzeilen = "From: {$konfiguration['von']}";
+    $kopfzeilen .= "\r\nReply-To: {$konfiguration['antwort']}";
+
+    foreach ($konfiguration['kopien'] as $kopie)
+    {
+        $kopfzeilen .= "\r\nCc: {$kopie}";
+    }
+
+    $nachricht = $bestellung->nachricht . "\n\n\n";
+
+    foreach ($bestellung->posten as $posten)
+    {
+        if ($posten->menge < 1)
+        {
+            continue;
+        }
+
+        $pflegemittel = pflegemittel_laden($posten->pflegemittel_id);
+
+        $nachricht .= "\n{$posten->menge} {$pflegemittel->einheit} {$pflegemittel->bezeichnung}";
+
+        if (strlen($pflegemittel->pzn_oder_ref) > 0)
+        {
+            $nachricht .= " ({$pflegemittel->pzn_oder_ref})";
+        }
+    }
+
+    if (mail($bestellung->empfaenger, $betreff, $nachricht, $kopfzeilen) === FALSE)
+    {
+        die('Konnte Bestellung nicht versenden.');
+    }
+}
+
+function bestellung_posten_bereinigen($posten)
 {
     bereinigen($posten->pflegemittel_id, intval);
     bereinigen($posten->menge, intval);
 }
 
-function bestellungen_posten_laden($bestellung_id)
+function bestellung_posten_laden($bestellung_id)
 {
    global $pdo;
 
@@ -22,7 +80,7 @@ function bestellungen_posten_laden($bestellung_id)
    return $stmt->fetchAll();
 }
 
-function bestellungen_posten_speichern($bestellung_id, $rows)
+function bestellung_posten_speichern($bestellung_id, $rows)
 {
     global $pdo;
 
@@ -32,7 +90,7 @@ function bestellungen_posten_speichern($bestellung_id, $rows)
     $stmt->bindParam(2, $pflegemittel_id);
     $stmt->bindParam(3, $menge);
 
-    foreach($rows as $row)
+    foreach ($rows as $row)
     {
         $pflegemittel_id = $row->pflegemittel_id;
         $menge = $row->menge;
@@ -41,7 +99,7 @@ function bestellungen_posten_speichern($bestellung_id, $rows)
     }
 }
 
-function bestellungen_bereinigen($bestellung)
+function bestellung_bereinigen($bestellung)
 {
     if (isset($bestellung->id))
     {
@@ -54,7 +112,7 @@ function bestellungen_bereinigen($bestellung)
 
     if (isset($bestellung->posten) && is_array($bestellung->posten))
     {
-        array_walk($bestellung->posten, bestellungen_posten_bereinigen);
+        array_walk($bestellung->posten, bestellung_posten_bereinigen);
     }
     else
     {
@@ -73,16 +131,16 @@ function bestellungen_laden()
 
     foreach ($rows as $row)
     {
-        $row->posten = bestellungen_posten_laden($row->id);
+        $row->posten = bestellung_posten_laden($row->id);
 
-        bestellungen_bereinigen($row);
+        bestellung_bereinigen($row);
     }
 
     header('Content-Type: application/json');
     print(json_encode($rows));
 }
 
-function bestellungen_speichern()
+function bestellung_speichern()
 {
     global $pdo;
 
@@ -93,7 +151,7 @@ function bestellungen_speichern()
         die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    bestellungen_bereinigen($row);
+    bestellung_bereinigen($row);
 
     $stmt = $pdo->prepare('INSERT INTO bestellungen (zeitstempel, empfaenger, nachricht) VALUES (?, ?, ?)');
 
@@ -103,7 +161,9 @@ function bestellungen_speichern()
 
     $stmt->execute();
 
-    bestellungen_posten_speichern($pdo->lastInsertId(), $row->posten);
+    bestellung_posten_speichern($pdo->lastInsertId(), $row->posten);
+
+    bestellung_versenden($row);
 }
 
-anfrage_verarbeiten(bestellungen_laden, bestellungen_speichern);
+anfrage_verarbeiten(bestellungen_laden, bestellung_speichern);

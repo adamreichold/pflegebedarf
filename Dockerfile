@@ -3,6 +3,8 @@ FROM php:7.1-apache
 ENV LIB_DIR /usr/lib/pflegebedarf
 ENV WWW_DIR /var/www/html/pflegebedarf
 
+COPY versenden.ini $LIB_DIR/
+
 COPY lib $LIB_DIR
 COPY api $WWW_DIR/api
 COPY ui/html $WWW_DIR/ui
