@@ -1,6 +1,6 @@
 FROM php:7.1-apache
 
-ENV LIB_DIR /var/lib/pflegebedarf
+ENV LIB_DIR /usr/lib/pflegebedarf
 ENV WWW_DIR /var/www/html/pflegebedarf
 
 COPY lib $LIB_DIR

@@ -1,7 +1,7 @@
 <?php
 
-require '/var/lib/pflegebedarf/schema.php';
-require '/var/lib/pflegebedarf/api.php';
+require '/usr/lib/pflegebedarf/schema.php';
+require '/usr/lib/pflegebedarf/api.php';
 
 function pflegemittel_bereinigen($pflegemittel)
 {

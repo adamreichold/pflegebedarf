@@ -136,7 +136,7 @@ function mit_datenbank_verbinden()
 {
     global $pdo;
 
-    $pdo = new PDO('sqlite:/var/lib/pflegebedarf/datenbank.sqlite');
+    $pdo = new PDO('sqlite:/usr/lib/pflegebedarf/datenbank.sqlite');
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
 
