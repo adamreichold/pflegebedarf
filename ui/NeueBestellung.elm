@@ -4,9 +4,8 @@ import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLad
 import Html exposing (Html, form, p, table, tr, th, td, text, input, textarea)
 import Html.Attributes exposing (type_, placeholder, value, disabled)
 import Html.Events exposing (onSubmit, onInput)
+import Json.Encode
 import Dict exposing (Dict)
-import Date exposing (Date)
-import Task
 
 
 main =
@@ -24,13 +23,13 @@ type alias Model =
     , letzteBestellung : Maybe Bestellung
     , neueBestellung : Bestellung
     , ungueltigeMengen : Dict Int String
+    , letzterFehler : String
     }
 
 
 type Msg
-    = PflegemittelLaden (List Pflegemittel)
-    | BestellungenLaden (List Bestellung)
-    | ZeitstempelAendern Date
+    = PflegemittelLaden (Result String (List Pflegemittel))
+    | BestellungenLaden (Result String (List Bestellung))
     | EmpfaengerAendern String
     | NachrichtAendern String
     | MengeAendern ( Int, String )
@@ -99,7 +98,7 @@ neueBestellungAnlegen pflegemittel letzteBestellung =
         posten =
             List.map neuerPosten <| List.map .id pflegemittel
     in
-        Bestellung 0 (Date.fromTime 0.0) empfaenger nachricht posten
+        Bestellung 0 empfaenger nachricht posten
 
 
 neueBestellungAendern : Model -> (Bestellung -> Bestellung) -> Model
@@ -117,13 +116,13 @@ neueBestellungMengeAendern model pflegemittelId menge =
             in
                 { model | neueBestellung = neueBestellung, ungueltigeMengen = Dict.remove pflegemittelId model.ungueltigeMengen }
 
-        Err err ->
+        Err _ ->
             { model | ungueltigeMengen = Dict.insert pflegemittelId menge model.ungueltigeMengen }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty
+    ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty ""
     , pflegemittelLaden PflegemittelLaden
     )
 
@@ -131,10 +130,13 @@ init =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        PflegemittelLaden pflegemittel ->
+        PflegemittelLaden (Ok pflegemittel) ->
             ( { model | pflegemittel = List.filter .wirdVerwendet pflegemittel }, bestellungenLaden BestellungenLaden )
 
-        BestellungenLaden bestellungen ->
+        PflegemittelLaden (Err err) ->
+            ( { model | letzterFehler = err }, Cmd.none )
+
+        BestellungenLaden (Ok bestellungen) ->
             let
                 letzteBestellung =
                     List.head bestellungen
@@ -146,10 +148,10 @@ update msg model =
                         , neueBestellung = neueBestellungAnlegen model.pflegemittel letzteBestellung
                     }
             in
-                ( newModel, Task.perform ZeitstempelAendern Date.now )
+                ( newModel, Cmd.none )
 
-        ZeitstempelAendern zeitstempel ->
-            ( neueBestellungAendern model <| \val -> { val | zeitstempel = zeitstempel }, Cmd.none )
+        BestellungenLaden (Err err) ->
+            ( { model | letzterFehler = err }, Cmd.none )
 
         EmpfaengerAendern empfaenger ->
             ( neueBestellungAendern model <| \val -> { val | empfaenger = empfaenger }, Cmd.none )
@@ -166,13 +168,18 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    form
-        [ onSubmit NeueBestellungSpeichern ]
-        [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
-        , p [] [ input [ type_ "email", placeholder "Empfänger", value model.neueBestellung.empfaenger, onInput EmpfaengerAendern ] [] ]
-        , p [] [ textarea [ placeholder "Nachricht", value model.neueBestellung.nachricht, onInput NachrichtAendern ] [] ]
-        , p [] [ input [ type_ "submit", value "Versenden", disabled <| not <| Dict.isEmpty model.ungueltigeMengen ] [] ]
-        ]
+    let
+        letzterFehler =
+            Html.Attributes.property "innerHTML" (Json.Encode.string model.letzterFehler)
+    in
+        form
+            [ onSubmit NeueBestellungSpeichern ]
+            [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
+            , p [] [ input [ type_ "email", placeholder "Empfänger", value model.neueBestellung.empfaenger, onInput EmpfaengerAendern ] [] ]
+            , p [] [ textarea [ placeholder "Nachricht", value model.neueBestellung.nachricht, onInput NachrichtAendern ] [] ]
+            , p [] [ input [ type_ "submit", value "Versenden", disabled <| not <| Dict.isEmpty model.ungueltigeMengen ] [] ]
+            , p [ letzterFehler ] []
+            ]
 
 
 subscriptions : Model -> Sub Msg

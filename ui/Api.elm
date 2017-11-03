@@ -3,8 +3,6 @@ module Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLad
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Date exposing (Date, fromTime, toTime)
-import Time exposing (Time, second, inSeconds)
 
 
 type alias Pflegemittel =
@@ -12,6 +10,7 @@ type alias Pflegemittel =
     , bezeichnung : String
     , einheit : String
     , pznOderRef : String
+    , vorhandeneMenge : Int
     , wirdVerwendet : Bool
     }
 
@@ -24,20 +23,10 @@ type alias BestellungPosten =
 
 type alias Bestellung =
     { id : Int
-    , zeitstempel : Date
     , empfaenger : String
     , nachricht : String
     , posten : List BestellungPosten
     }
-
-
-decodeZeitstempel : Decode.Decoder Date
-decodeZeitstempel =
-    let
-        toDate =
-            fromTime << (*) second << toFloat
-    in
-        Decode.map toDate Decode.int
 
 
 encodeId : Int -> Encode.Value
@@ -48,18 +37,14 @@ encodeId id =
         Encode.null
 
 
-encodeZeitstempel : Date -> Encode.Value
-encodeZeitstempel zeitstempel =
-    Encode.int <| truncate <| inSeconds <| toTime zeitstempel
-
-
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
-    Decode.map5 Pflegemittel
+    Decode.map6 Pflegemittel
         (Decode.field "id" Decode.int)
         (Decode.field "bezeichnung" Decode.string)
         (Decode.field "einheit" Decode.string)
         (Decode.field "pzn_oder_ref" Decode.string)
+        (Decode.field "vorhandene_menge" Decode.int)
         (Decode.field "wird_verwendet" Decode.bool)
 
 
@@ -70,6 +55,7 @@ encodePflegemittel pflegemittel =
         , ( "bezeichnung", Encode.string pflegemittel.bezeichnung )
         , ( "einheit", Encode.string pflegemittel.einheit )
         , ( "pzn_oder_ref", Encode.string pflegemittel.pznOderRef )
+        , ( "vorhandene_menge", Encode.int pflegemittel.vorhandeneMenge )
         , ( "wird_verwendet", Encode.bool pflegemittel.wirdVerwendet )
         ]
 
@@ -91,9 +77,8 @@ encodeBestellungPosten posten =
 
 decodeBestellung : Decode.Decoder Bestellung
 decodeBestellung =
-    Decode.map5 Bestellung
+    Decode.map4 Bestellung
         (Decode.field "id" Decode.int)
-        (Decode.field "zeitstempel" decodeZeitstempel)
         (Decode.field "empfaenger" Decode.string)
         (Decode.field "nachricht" Decode.string)
         (Decode.field "posten" (Decode.list decodeBestellungPosten))
@@ -103,42 +88,40 @@ encodeBestellung : Bestellung -> Encode.Value
 encodeBestellung bestellung =
     Encode.object
         [ ( "id", encodeId bestellung.id )
-        , ( "zeitstempel", encodeZeitstempel bestellung.zeitstempel )
         , ( "empfaenger", Encode.string bestellung.empfaenger )
         , ( "nachricht", Encode.string bestellung.nachricht )
         , ( "posten", Encode.list <| List.map encodeBestellungPosten bestellung.posten )
         ]
 
 
-fehlerBehandeln : Result Http.Error (List a) -> List a
+fehlerBehandeln : Result Http.Error a -> Result String a
 fehlerBehandeln result =
     case result of
         Ok val ->
-            val
+            Ok val
+
+        Err (Http.BadPayload err response) ->
+            Err response.body
 
         Err err ->
-            let
-                _ =
-                    Debug.log "Err" err
-            in
-                []
+            Err <| toString err
 
 
-objekteLaden : (List a -> msg) -> String -> Decode.Decoder (List a) -> Cmd msg
-objekteLaden msg url decoder =
+objektLaden : (Result String a -> msg) -> String -> Decode.Decoder a -> Cmd msg
+objektLaden msg url decoder =
     Http.send (msg << fehlerBehandeln) (Http.get url decoder)
 
 
-objekteSpeichern : (List a -> msg) -> String -> Decode.Decoder (List a) -> (b -> Encode.Value) -> b -> Cmd msg
-objekteSpeichern msg url decoder encoder objekte =
+objektSpeichern : (Result String a -> msg) -> String -> Decode.Decoder a -> (b -> Encode.Value) -> b -> Cmd msg
+objektSpeichern msg url decoder encoder objekt =
     let
         body =
-            Http.jsonBody <| encoder objekte
+            Http.jsonBody <| encoder objekt
     in
         Http.send (msg << fehlerBehandeln) (Http.post url body decoder)
 
 
-pflegemittelLaden : (List Pflegemittel -> msg) -> Cmd msg
+pflegemittelLaden : (Result String (List Pflegemittel) -> msg) -> Cmd msg
 pflegemittelLaden msg =
     let
         url =
@@ -147,10 +130,10 @@ pflegemittelLaden msg =
         decoder =
             Decode.list decodePflegemittel
     in
-        objekteLaden msg url decoder
+        objektLaden msg url decoder
 
 
-pflegemittelSpeichern : (List Pflegemittel -> msg) -> List Pflegemittel -> Cmd msg
+pflegemittelSpeichern : (Result String (List Pflegemittel) -> msg) -> List Pflegemittel -> Cmd msg
 pflegemittelSpeichern msg pflegemittel =
     let
         url =
@@ -162,10 +145,10 @@ pflegemittelSpeichern msg pflegemittel =
         encoder =
             Encode.list << List.map encodePflegemittel
     in
-        objekteSpeichern msg url decoder encoder pflegemittel
+        objektSpeichern msg url decoder encoder pflegemittel
 
 
-bestellungenLaden : (List Bestellung -> msg) -> Cmd msg
+bestellungenLaden : (Result String (List Bestellung) -> msg) -> Cmd msg
 bestellungenLaden msg =
     let
         url =
@@ -174,10 +157,10 @@ bestellungenLaden msg =
         decoder =
             Decode.list decodeBestellung
     in
-        objekteLaden msg url decoder
+        objektLaden msg url decoder
 
 
-neueBestellungSpeichern : (List Bestellung -> msg) -> Bestellung -> Cmd msg
+neueBestellungSpeichern : (Result String (List Bestellung) -> msg) -> Bestellung -> Cmd msg
 neueBestellungSpeichern msg bestellung =
     let
         url =
@@ -189,4 +172,4 @@ neueBestellungSpeichern msg bestellung =
         encoder =
             encodeBestellung
     in
-        objekteSpeichern msg url decoder encoder bestellung
+        objektSpeichern msg url decoder encoder bestellung

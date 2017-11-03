@@ -11,6 +11,7 @@ function schema_anlegen()
     $pflegemittel = <<<SQL
 CREATE TABLE pflegemittel (
     id INTEGER PRIMARY KEY,
+    zeitstempel INTEGER NOT NULL,
     bezeichnung TEXT NOT NULL,
     einheit TEXT NOT NULL
 )
@@ -60,11 +61,8 @@ function schema_v1_migrieren()
 
     $pdo->beginTransaction();
 
-    $pflegemittel = <<<SQL
-ALTER TABLE pflegemittel ADD COLUMN wird_verwendet INTEGER NOT NULL DEFAULT 1
-SQL;
-
-    $pdo->exec($pflegemittel);
+    $pdo->exec('ALTER TABLE pflegemittel ADD COLUMN vorhandene_menge INTEGER NOT NULL DEFAULT 0');
+    $pdo->exec('ALTER TABLE pflegemittel ADD COLUMN wird_verwendet INTEGER NOT NULL DEFAULT 1');
 
     $pdo->exec('PRAGMA user_version = 2');
 
@@ -79,11 +77,7 @@ function schema_v2_migrieren()
 
     $pdo->beginTransaction();
 
-    $bestellungen = <<<SQL
-ALTER TABLE bestellungen ADD COLUMN nachricht TEXT NOT NULL DEFAULT ''
-SQL;
-
-    $pdo->exec($bestellungen);
+    $pdo->exec("ALTER TABLE bestellungen ADD COLUMN nachricht TEXT NOT NULL DEFAULT ''");
 
     $pdo->exec('PRAGMA user_version = 3');
 

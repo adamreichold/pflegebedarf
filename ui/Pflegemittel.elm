@@ -2,8 +2,10 @@ module Pflegemittel exposing (main)
 
 import Api exposing (Pflegemittel, pflegemittelLaden, pflegemittelSpeichern)
 import Html exposing (Html, form, p, table, tr, th, td, text, input)
-import Html.Attributes exposing (type_, value, checked)
+import Html.Attributes exposing (type_, value, checked, disabled)
 import Html.Events exposing (onInput, onCheck, onSubmit)
+import Json.Encode
+import Dict exposing (Dict)
 
 
 main =
@@ -17,97 +19,61 @@ main =
 
 type alias Model =
     { pflegemittel : List Pflegemittel
-    , neuesPflegemittel : Maybe Pflegemittel
+    , ungueltigeMengen : Dict Int String
+    , letzterFehler : String
     }
 
 
 type Msg
-    = PflegemittelLaden (List Pflegemittel)
+    = PflegemittelLaden (Result String (List Pflegemittel))
     | BezeichnungAendern ( Int, String )
     | EinheitAendern ( Int, String )
     | PznOderRefAendern ( Int, String )
+    | VorhandeneMengeAendern ( Int, String )
     | WirdVerwendetAendern ( Int, Bool )
-    | NeueBezeichungAendern String
-    | NeueEinheitAendern String
-    | NeuePznOderRefAendern String
-    | NeueWirdVerwendetAendern Bool
     | PflegemittelSpeichern
 
 
 eigenschaftAendern : List Pflegemittel -> Int -> (Pflegemittel -> Pflegemittel) -> List Pflegemittel
 eigenschaftAendern pflegemittel id aenderung =
-    List.map
-        (\val ->
-            if val.id == id then
-                (aenderung val)
-            else
-                val
-        )
-        pflegemittel
-
-
-bezeichnungAendern : List Pflegemittel -> Int -> String -> List Pflegemittel
-bezeichnungAendern pflegemittel id bezeichnung =
-    eigenschaftAendern pflegemittel id <| \val -> { val | bezeichnung = bezeichnung }
-
-
-einheitAendern : List Pflegemittel -> Int -> String -> List Pflegemittel
-einheitAendern pflegemittel id einheit =
-    eigenschaftAendern pflegemittel id <| \val -> { val | einheit = einheit }
-
-
-pznOderRefAendern : List Pflegemittel -> Int -> String -> List Pflegemittel
-pznOderRefAendern pflegemittel id pznOderRef =
-    eigenschaftAendern pflegemittel id <| \val -> { val | pznOderRef = pznOderRef }
-
-
-wirdVerwendetAendern : List Pflegemittel -> Int -> Bool -> List Pflegemittel
-wirdVerwendetAendern pflegemittel id wirdVerwendet =
-    eigenschaftAendern pflegemittel id <| \val -> { val | wirdVerwendet = wirdVerwendet }
-
-
-neueEigenschaftAendern : Maybe Pflegemittel -> (Pflegemittel -> Pflegemittel) -> Maybe Pflegemittel
-neueEigenschaftAendern pflegemittel aenderung =
     let
-        neuesPflegemittel =
-            Pflegemittel 0 "" "" "" True
+        eintragAendern =
+            \pflegemittel ->
+                if pflegemittel.id == id then
+                    aenderung pflegemittel
+                else
+                    pflegemittel
     in
-        Just <| aenderung <| Maybe.withDefault neuesPflegemittel pflegemittel
+        List.map eintragAendern pflegemittel
 
 
-neueBezeichungAendern : Maybe Pflegemittel -> String -> Maybe Pflegemittel
-neueBezeichungAendern pflegemittel bezeichnung =
-    neueEigenschaftAendern pflegemittel <| \val -> { val | bezeichnung = bezeichnung }
+vorhandeneMengeAendern : Model -> Int -> String -> Model
+vorhandeneMengeAendern model id vorhandeneMenge =
+    case String.toInt vorhandeneMenge of
+        Ok vorhandeneMenge ->
+            let
+                pflegemittel =
+                    eigenschaftAendern model.pflegemittel id <| \val -> { val | vorhandeneMenge = vorhandeneMenge }
+            in
+                { model | pflegemittel = pflegemittel, ungueltigeMengen = Dict.remove id model.ungueltigeMengen }
+
+        Err _ ->
+            { model | ungueltigeMengen = Dict.insert id vorhandeneMenge model.ungueltigeMengen }
 
 
-neueEinheitAendern : Maybe Pflegemittel -> String -> Maybe Pflegemittel
-neueEinheitAendern pflegemittel einheit =
-    neueEigenschaftAendern pflegemittel <| \val -> { val | einheit = einheit }
-
-
-neuePznOderRefAendern : Maybe Pflegemittel -> String -> Maybe Pflegemittel
-neuePznOderRefAendern pflegemittel pznOderRef =
-    neueEigenschaftAendern pflegemittel <| \val -> { val | pznOderRef = pznOderRef }
-
-
-neueWirdVerwenderAendern : Maybe Pflegemittel -> Bool -> Maybe Pflegemittel
-neueWirdVerwenderAendern pflegemittel wirdVerwendet =
-    neueEigenschaftAendern pflegemittel <| \val -> { val | wirdVerwendet = wirdVerwendet }
-
-
-allePflegemittel : Model -> List Pflegemittel
-allePflegemittel model =
-    case model.neuesPflegemittel of
-        Nothing ->
-            model.pflegemittel
-
-        Just neuesPflegemittel ->
-            neuesPflegemittel :: model.pflegemittel
+gueltigePflegemittel : List Pflegemittel -> List Pflegemittel
+gueltigePflegemittel pflegemittel =
+    let
+        neuesUngueltig =
+            \pflegemittel ->
+                pflegemittel.id == 0 && (String.isEmpty pflegemittel.bezeichnung || String.isEmpty pflegemittel.einheit)
+    in
+        List.filter (not << neuesUngueltig) pflegemittel
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model [] Nothing
+    ( Model [] Dict.empty ""
     , pflegemittelLaden PflegemittelLaden
     )
 
@@ -115,44 +81,43 @@ init =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        PflegemittelLaden pflegemittel ->
-            ( { model | pflegemittel = pflegemittel, neuesPflegemittel = Nothing }, Cmd.none )
+        PflegemittelLaden (Ok pflegemittel) ->
+            ( { model | pflegemittel = pflegemittel ++ [ Pflegemittel 0 "" "" "" 0 True ] }, Cmd.none )
+
+        PflegemittelLaden (Err err) ->
+            ( { model | letzterFehler = err }, Cmd.none )
 
         BezeichnungAendern ( id, bezeichnung ) ->
-            ( { model | pflegemittel = bezeichnungAendern model.pflegemittel id bezeichnung }, Cmd.none )
+            ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | bezeichnung = bezeichnung } }, Cmd.none )
 
         EinheitAendern ( id, einheit ) ->
-            ( { model | pflegemittel = einheitAendern model.pflegemittel id einheit }, Cmd.none )
+            ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | einheit = einheit } }, Cmd.none )
 
         PznOderRefAendern ( id, pznOderRef ) ->
-            ( { model | pflegemittel = pznOderRefAendern model.pflegemittel id pznOderRef }, Cmd.none )
+            ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | pznOderRef = pznOderRef } }, Cmd.none )
+
+        VorhandeneMengeAendern ( id, vorhandeneMenge ) ->
+            ( vorhandeneMengeAendern model id vorhandeneMenge, Cmd.none )
 
         WirdVerwendetAendern ( id, wirdVerwendet ) ->
-            ( { model | pflegemittel = wirdVerwendetAendern model.pflegemittel id wirdVerwendet }, Cmd.none )
-
-        NeueBezeichungAendern bezeichnung ->
-            ( { model | neuesPflegemittel = neueBezeichungAendern model.neuesPflegemittel bezeichnung }, Cmd.none )
-
-        NeueEinheitAendern einheit ->
-            ( { model | neuesPflegemittel = neueEinheitAendern model.neuesPflegemittel einheit }, Cmd.none )
-
-        NeuePznOderRefAendern pznOderRef ->
-            ( { model | neuesPflegemittel = neuePznOderRefAendern model.neuesPflegemittel pznOderRef }, Cmd.none )
-
-        NeueWirdVerwendetAendern wirdVerwendet ->
-            ( { model | neuesPflegemittel = neueWirdVerwenderAendern model.neuesPflegemittel wirdVerwendet }, Cmd.none )
+            ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wirdVerwendet = wirdVerwendet } }, Cmd.none )
 
         PflegemittelSpeichern ->
-            ( model, pflegemittelSpeichern PflegemittelLaden <| allePflegemittel model )
+            ( model, pflegemittelSpeichern PflegemittelLaden <| gueltigePflegemittel model.pflegemittel )
 
 
 view : Model -> Html Msg
 view model =
-    form
-        [ onSubmit PflegemittelSpeichern ]
-        [ pflegemittelTabelle model.pflegemittel
-        , p [] [ input [ type_ "submit", value "Speichern" ] [] ]
-        ]
+    let
+        letzterFehler =
+            Html.Attributes.property "innerHTML" (Json.Encode.string model.letzterFehler)
+    in
+        form
+            [ onSubmit PflegemittelSpeichern ]
+            [ pflegemittelTabelle model.pflegemittel model.ungueltigeMengen
+            , p [] [ input [ type_ "submit", value "Speichern", disabled <| not <| Dict.isEmpty model.ungueltigeMengen ] [] ]
+            , p [ letzterFehler ] []
+            ]
 
 
 subscriptions : Model -> Sub Msg
@@ -160,9 +125,13 @@ subscriptions model =
     Sub.none
 
 
-pflegemittelTabelle : List Pflegemittel -> Html Msg
-pflegemittelTabelle pflegemittel =
-    table [] <| [ pflegemittelUeberschrift ] ++ List.map pflegemittelZeile pflegemittel ++ [ pflegemittelNeueZeile ]
+pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Html Msg
+pflegemittelTabelle pflegemittel ungueltigeMengen =
+    let
+        zeile =
+            \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeMengen
+    in
+        table [] <| pflegemittelUeberschrift :: List.map zeile pflegemittel
 
 
 pflegemittelUeberschrift : Html Msg
@@ -171,25 +140,23 @@ pflegemittelUeberschrift =
         [ th [] [ text "Bezeichnung" ]
         , th [] [ text "Einheit" ]
         , th [] [ text "PZN oder REF" ]
-        , th [] [ text "Wird verwendet" ]
+        , th [] [ text "vorhandene Menge" ]
+        , th [] [ text "wird verwendet" ]
         ]
 
 
-pflegemittelZeile : Pflegemittel -> Html Msg
-pflegemittelZeile pflegemittel =
-    tr []
-        [ td [] [ input [ type_ "text", value pflegemittel.bezeichnung, onInput <| curry BezeichnungAendern <| pflegemittel.id ] [] ]
-        , td [] [ input [ type_ "text", value pflegemittel.einheit, onInput <| curry EinheitAendern <| pflegemittel.id ] [] ]
-        , td [] [ input [ type_ "text", value pflegemittel.pznOderRef, onInput <| curry PznOderRefAendern <| pflegemittel.id ] [] ]
-        , td [] [ input [ type_ "checkbox", checked pflegemittel.wirdVerwendet, onCheck <| curry WirdVerwendetAendern <| pflegemittel.id ] [] ]
-        ]
-
-
-pflegemittelNeueZeile : Html Msg
-pflegemittelNeueZeile =
-    tr []
-        [ td [] [ input [ type_ "text", onInput NeueBezeichungAendern ] [] ]
-        , td [] [ input [ type_ "text", onInput NeueEinheitAendern ] [] ]
-        , td [] [ input [ type_ "text", onInput NeuePznOderRefAendern ] [] ]
-        , td [] [ input [ type_ "checkbox", checked True, onCheck NeueWirdVerwendetAendern ] [] ]
-        ]
+pflegemittelZeile : Pflegemittel -> Dict Int String -> Html Msg
+pflegemittelZeile pflegemittel ungueltigeMengen =
+    let
+        vorhandeneMenge =
+            Maybe.withDefault
+                (toString <| pflegemittel.vorhandeneMenge)
+                (Dict.get pflegemittel.id ungueltigeMengen)
+    in
+        tr []
+            [ td [] [ input [ type_ "text", value pflegemittel.bezeichnung, onInput <| curry BezeichnungAendern <| pflegemittel.id ] [] ]
+            , td [] [ input [ type_ "text", value pflegemittel.einheit, onInput <| curry EinheitAendern <| pflegemittel.id ] [] ]
+            , td [] [ input [ type_ "text", value pflegemittel.pznOderRef, onInput <| curry PznOderRefAendern <| pflegemittel.id ] [] ]
+            , td [] [ input [ type_ "number", value vorhandeneMenge, onInput <| curry VorhandeneMengeAendern <| pflegemittel.id ] [] ]
+            , td [] [ input [ type_ "checkbox", checked pflegemittel.wirdVerwendet, onCheck <| curry WirdVerwendetAendern <| pflegemittel.id ] [] ]
+            ]
