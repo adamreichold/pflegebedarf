@@ -1,6 +1,7 @@
 #!/bin/bash -xe
 
 ./ui/build.sh
+./ui/minify.sh
 
 LIB_DIR=/usr/lib/pflegebedarf
 WWW_DIR=/www/pflegebedarf
