@@ -14,6 +14,7 @@ function pflegemittel_bereinigen($pflegemittel)
 
     bereinigen($pflegemittel->bezeichnung, strval);
     bereinigen($pflegemittel->einheit, strval);
+    bereinigen($pflegemittel->hersteller_und_produkt, strval);
     bereinigen($pflegemittel->pzn_oder_ref, strval);
     bereinigen($pflegemittel->vorhandene_menge, intval);
     bereinigen($pflegemittel->wird_verwendet, boolval);
@@ -51,20 +52,21 @@ function pflegemittel_speichern()
 
         if (isset($row->id))
         {
-            $stmt = $pdo->prepare('UPDATE pflegemittel SET zeitstempel = ?, bezeichnung = ?, einheit = ?, pzn_oder_ref = ?, vorhandene_menge = ?, wird_verwendet = ? WHERE id = ?');
-            $stmt->bindParam(7, $row->id);
+            $stmt = $pdo->prepare('UPDATE pflegemittel SET zeitstempel = ?, bezeichnung = ?, einheit = ?, hersteller_und_produkt = ?, pzn_oder_ref = ?, vorhandene_menge = ?, wird_verwendet = ? WHERE id = ?');
+            $stmt->bindParam(8, $row->id);
         }
         else
         {
-            $stmt = $pdo->prepare('INSERT INTO pflegemittel (zeitstempel, bezeichnung, einheit, pzn_oder_ref, vorhandene_menge, wird_verwendet) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt = $pdo->prepare('INSERT INTO pflegemittel (zeitstempel, bezeichnung, einheit, hersteller_und_produkt, pzn_oder_ref, vorhandene_menge, wird_verwendet) VALUES (?, ?, ?, ?, ?, ?, ?)');
         }
 
         $stmt->bindParam(1, $row->zeitstempel);
         $stmt->bindParam(2, $row->bezeichnung);
         $stmt->bindParam(3, $row->einheit);
-        $stmt->bindParam(4, $row->pzn_oder_ref);
-        $stmt->bindParam(5, $row->vorhandene_menge);
-        $stmt->bindParam(6, $row->wird_verwendet);
+        $stmt->bindParam(4, $row->hersteller_und_produkt);
+        $stmt->bindParam(5, $row->pzn_oder_ref);
+        $stmt->bindParam(6, $row->vorhandene_menge);
+        $stmt->bindParam(7, $row->wird_verwendet);
 
         $stmt->execute();
     }

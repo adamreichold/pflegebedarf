@@ -92,11 +92,8 @@ function schema_v3_migrieren()
 
     $pdo->beginTransaction();
 
-    $pflegemittel = <<<SQL
-ALTER TABLE pflegemittel ADD COLUMN pzn_oder_ref TEXT
-SQL;
-
-    $pdo->exec($pflegemittel);
+    $pdo->exec("ALTER TABLE pflegemittel ADD COLUMN hersteller_und_produkt TEXT NOT NULL DEFAULT ''");
+    $pdo->exec("ALTER TABLE pflegemittel ADD COLUMN pzn_oder_ref TEXT NOT NULL DEFAULT ''");
 
     $pdo->exec('PRAGMA user_version = 4');
 

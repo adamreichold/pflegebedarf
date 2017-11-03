@@ -46,9 +46,9 @@ function bestellung_versenden($bestellung)
 
         $nachricht .= "\n* {$posten->menge} {$pflegemittel->einheit} {$pflegemittel->bezeichnung}";
 
-        if (strlen($pflegemittel->pzn_oder_ref) > 0)
+        if (strlen($pflegemittel->hersteller_und_produkt) > 0 || strlen($pflegemittel->pzn_oder_ref) > 0)
         {
-            $nachricht .= " ({$pflegemittel->pzn_oder_ref})";
+            $nachricht .= " ({$pflegemittel->hersteller_und_produkt} {$pflegemittel->pzn_oder_ref})";
         }
 
         $nachricht .= " ({$pflegemittel->vorhandene_menge} {$pflegemittel->einheiten} vorhanden)";

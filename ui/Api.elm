@@ -9,6 +9,7 @@ type alias Pflegemittel =
     { id : Int
     , bezeichnung : String
     , einheit : String
+    , herstellerUndProdukt : String
     , pznOderRef : String
     , vorhandeneMenge : Int
     , wirdVerwendet : Bool
@@ -39,10 +40,11 @@ encodeId id =
 
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
-    Decode.map6 Pflegemittel
+    Decode.map7 Pflegemittel
         (Decode.field "id" Decode.int)
         (Decode.field "bezeichnung" Decode.string)
         (Decode.field "einheit" Decode.string)
+        (Decode.field "hersteller_und_produkt" Decode.string)
         (Decode.field "pzn_oder_ref" Decode.string)
         (Decode.field "vorhandene_menge" Decode.int)
         (Decode.field "wird_verwendet" Decode.bool)
@@ -54,6 +56,7 @@ encodePflegemittel pflegemittel =
         [ ( "id", encodeId pflegemittel.id )
         , ( "bezeichnung", Encode.string pflegemittel.bezeichnung )
         , ( "einheit", Encode.string pflegemittel.einheit )
+        , ( "hersteller_und_produkt", Encode.string pflegemittel.herstellerUndProdukt )
         , ( "pzn_oder_ref", Encode.string pflegemittel.pznOderRef )
         , ( "vorhandene_menge", Encode.int pflegemittel.vorhandeneMenge )
         , ( "wird_verwendet", Encode.bool pflegemittel.wirdVerwendet )
@@ -101,7 +104,11 @@ fehlerBehandeln result =
             Ok val
 
         Err (Http.BadPayload err response) ->
-            Err response.body
+            let
+                _ =
+                    Debug.log "Err" err
+            in
+                Err response.body
 
         Err err ->
             Err <| toString err
