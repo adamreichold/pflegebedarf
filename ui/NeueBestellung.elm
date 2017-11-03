@@ -1,10 +1,8 @@
 module NeueBestellung exposing (main)
 
 import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLaden, bestellungenLaden, neueBestellungSpeichern)
-import Html exposing (Html, form, p, table, tr, th, td, text, input, textarea)
-import Html.Attributes exposing (type_, placeholder, value, disabled)
-import Html.Events exposing (onSubmit, onInput)
-import Json.Encode
+import Ui exposing (formular, tabelle, textField, textArea, numberField, emailField, checkBox)
+import Html exposing (Html, p, text)
 import Dict exposing (Dict)
 
 
@@ -169,17 +167,16 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        letzterFehler =
-            Html.Attributes.property "innerHTML" (Json.Encode.string model.letzterFehler)
-    in
-        form
-            [ onSubmit NeueBestellungSpeichern ]
+        absendenEnabled =
+            Dict.isEmpty model.ungueltigeMengen
+
+        inhalt =
             [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
-            , p [] [ input [ type_ "email", placeholder "Empfänger", value model.neueBestellung.empfaenger, onInput EmpfaengerAendern ] [] ]
-            , p [] [ textarea [ placeholder "Nachricht", value model.neueBestellung.nachricht, onInput NachrichtAendern ] [] ]
-            , p [] [ input [ type_ "submit", value "Versenden", disabled <| not <| Dict.isEmpty model.ungueltigeMengen ] [] ]
-            , p [ letzterFehler ] []
+            , p [] [ emailField "Empfänger" model.neueBestellung.empfaenger EmpfaengerAendern ]
+            , p [] [ textArea "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
             ]
+    in
+        formular NeueBestellungSpeichern "Versenden" absendenEnabled inhalt model.letzterFehler
 
 
 subscriptions : Model -> Sub Msg
@@ -190,24 +187,16 @@ subscriptions model =
 neueBestellungTabelle : List Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> Html Msg
 neueBestellungTabelle pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
     let
+        ueberschriften =
+            [ "Bezeichnung", "Einheit", "vorhandene Menge", "mittlere Menge", "letzte Menge", "Menge" ]
+
         zeile =
             \pflegemittel -> neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen
     in
-        table [] <| neueBestellungUeberschrift :: List.map zeile pflegemittel
+        tabelle ueberschriften <| List.map zeile pflegemittel
 
 
-neueBestellungUeberschrift : Html Msg
-neueBestellungUeberschrift =
-    tr []
-        [ th [] [ text "Bezeichnung" ]
-        , th [] [ text "Einheit" ]
-        , th [] [ text "mittlere Menge" ]
-        , th [] [ text "letzte Menge" ]
-        , th [] [ text "Menge" ]
-        ]
-
-
-neueBestellungZeile : Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> Html Msg
+neueBestellungZeile : Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> List (Html Msg)
 neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
     let
         mittlere =
@@ -221,10 +210,10 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
                 (toString <| menge pflegemittel.id neueBestellung)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
-        tr []
-            [ td [] [ text pflegemittel.bezeichnung ]
-            , td [] [ text pflegemittel.einheit ]
-            , td [] [ text mittlere ]
-            , td [] [ text letzte ]
-            , td [] [ input [ type_ "number", Html.Attributes.min "0", value neue, onInput <| curry MengeAendern <| pflegemittel.id ] [] ]
-            ]
+        [ text pflegemittel.bezeichnung
+        , text pflegemittel.einheit
+        , text <| toString pflegemittel.vorhandeneMenge
+        , text mittlere
+        , text letzte
+        , numberField "0" neue <| curry MengeAendern <| pflegemittel.id
+        ]

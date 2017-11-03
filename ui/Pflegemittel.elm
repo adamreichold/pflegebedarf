@@ -1,10 +1,8 @@
 module Pflegemittel exposing (main)
 
 import Api exposing (Pflegemittel, pflegemittelLaden, pflegemittelSpeichern)
-import Html exposing (Html, form, p, table, tr, th, td, text, input)
-import Html.Attributes exposing (type_, value, checked, disabled)
-import Html.Events exposing (onInput, onCheck, onSubmit)
-import Json.Encode
+import Ui exposing (formular, tabelle, textField, numberField, checkBox)
+import Html exposing (Html)
 import Dict exposing (Dict)
 
 
@@ -109,15 +107,13 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        letzterFehler =
-            Html.Attributes.property "innerHTML" (Json.Encode.string model.letzterFehler)
+        absendenEnabled =
+            Dict.isEmpty model.ungueltigeMengen
+
+        inhalt =
+            [ pflegemittelTabelle model.pflegemittel model.ungueltigeMengen ]
     in
-        form
-            [ onSubmit PflegemittelSpeichern ]
-            [ pflegemittelTabelle model.pflegemittel model.ungueltigeMengen
-            , p [] [ input [ type_ "submit", value "Speichern", disabled <| not <| Dict.isEmpty model.ungueltigeMengen ] [] ]
-            , p [ letzterFehler ] []
-            ]
+        formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.letzterFehler
 
 
 subscriptions : Model -> Sub Msg
@@ -128,24 +124,16 @@ subscriptions model =
 pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Html Msg
 pflegemittelTabelle pflegemittel ungueltigeMengen =
     let
+        ueberschriften =
+            [ "Bezeichnung", "Einheit", "PZN oder REF", "vorhandene Menge", "wird verwendet" ]
+
         zeile =
             \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeMengen
     in
-        table [] <| pflegemittelUeberschrift :: List.map zeile pflegemittel
+        tabelle ueberschriften <| List.map zeile pflegemittel
 
 
-pflegemittelUeberschrift : Html Msg
-pflegemittelUeberschrift =
-    tr []
-        [ th [] [ text "Bezeichnung" ]
-        , th [] [ text "Einheit" ]
-        , th [] [ text "PZN oder REF" ]
-        , th [] [ text "vorhandene Menge" ]
-        , th [] [ text "wird verwendet" ]
-        ]
-
-
-pflegemittelZeile : Pflegemittel -> Dict Int String -> Html Msg
+pflegemittelZeile : Pflegemittel -> Dict Int String -> List (Html Msg)
 pflegemittelZeile pflegemittel ungueltigeMengen =
     let
         vorhandeneMenge =
@@ -153,10 +141,9 @@ pflegemittelZeile pflegemittel ungueltigeMengen =
                 (toString <| pflegemittel.vorhandeneMenge)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
-        tr []
-            [ td [] [ input [ type_ "text", value pflegemittel.bezeichnung, onInput <| curry BezeichnungAendern <| pflegemittel.id ] [] ]
-            , td [] [ input [ type_ "text", value pflegemittel.einheit, onInput <| curry EinheitAendern <| pflegemittel.id ] [] ]
-            , td [] [ input [ type_ "text", value pflegemittel.pznOderRef, onInput <| curry PznOderRefAendern <| pflegemittel.id ] [] ]
-            , td [] [ input [ type_ "number", value vorhandeneMenge, onInput <| curry VorhandeneMengeAendern <| pflegemittel.id ] [] ]
-            , td [] [ input [ type_ "checkbox", checked pflegemittel.wirdVerwendet, onCheck <| curry WirdVerwendetAendern <| pflegemittel.id ] [] ]
-            ]
+        [ textField pflegemittel.bezeichnung <| curry BezeichnungAendern <| pflegemittel.id
+        , textField pflegemittel.einheit <| curry EinheitAendern <| pflegemittel.id
+        , textField pflegemittel.pznOderRef <| curry PznOderRefAendern <| pflegemittel.id
+        , numberField "0" vorhandeneMenge <| curry VorhandeneMengeAendern <| pflegemittel.id
+        , checkBox pflegemittel.wirdVerwendet <| curry WirdVerwendetAendern <| pflegemittel.id
+        ]
