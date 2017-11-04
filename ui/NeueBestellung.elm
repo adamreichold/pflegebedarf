@@ -1,8 +1,8 @@
 module NeueBestellung exposing (main)
 
 import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLaden, bestellungenLaden, neueBestellungSpeichern)
-import Ui exposing (formular, tabelle, textField, textArea, numberField, emailField, checkBox)
-import Html exposing (Html, p, text)
+import Ui exposing (p, formular, tabelle, textField, textArea, numberField, emailField, checkBox)
+import Html exposing (Html, text)
 import Dict exposing (Dict)
 
 

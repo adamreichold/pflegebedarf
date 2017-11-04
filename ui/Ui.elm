@@ -1,6 +1,6 @@
-module Ui exposing (formular, tabelle, textField, textArea, numberField, emailField, checkBox)
+module Ui exposing (p, formular, tabelle, textField, textArea, numberField, emailField, checkBox)
 
-import Html exposing (Html, Attribute, form, p, tr, th, text, input, textarea)
+import Html exposing (Html, Attribute, form, tr, th, text, input, textarea)
 import Html.Attributes exposing (property, type_, placeholder, value, checked, disabled, rows, style)
 import Html.Events exposing (onSubmit, onInput, onCheck)
 import Json.Encode
@@ -25,6 +25,14 @@ centeredText =
 
 boldRedText =
     [ ( "font-weight", "bold" ), ( "color", "red" ) ]
+
+
+p attributes children =
+    let
+        style_ =
+            style largePadding
+    in
+        Html.p (style_ :: attributes) children
 
 
 table attributes children =
