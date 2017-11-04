@@ -33,7 +33,7 @@ function bestellung_versenden($bestellung)
         $kopfzeilen .= "\r\nCc: {$kopie}";
     }
 
-    $nachricht = $bestellung->nachricht . "\n\n\n";
+    $nachricht = $bestellung->nachricht . "\n\n";
 
     foreach ($bestellung->posten as $posten)
     {
@@ -44,14 +44,12 @@ function bestellung_versenden($bestellung)
 
         $pflegemittel = pflegemittel_laden($posten->pflegemittel_id);
 
-        $nachricht .= "\n* {$posten->menge} {$pflegemittel->einheit} {$pflegemittel->bezeichnung}";
+        $nachricht .= "\n\n* {$posten->menge} {$pflegemittel->einheit} {$pflegemittel->bezeichnung}";
 
         if (strlen($pflegemittel->hersteller_und_produkt) > 0 || strlen($pflegemittel->pzn_oder_ref) > 0)
         {
             $nachricht .= " ({$pflegemittel->hersteller_und_produkt} {$pflegemittel->pzn_oder_ref})";
         }
-
-        $nachricht .= " ({$pflegemittel->vorhandene_menge} {$pflegemittel->einheiten} vorhanden)";
     }
 
     if (mail($bestellung->empfaenger, $betreff, $nachricht, $kopfzeilen) === FALSE)
