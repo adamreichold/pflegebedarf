@@ -31,13 +31,11 @@ function bestellung_posten_speichern($bestellung_id, $rows)
     $stmt = $pdo->prepare('INSERT INTO bestellungen_posten VALUES (?, ?, ?)');
 
     $stmt->bindParam(1, $bestellung_id);
-    $stmt->bindParam(2, $pflegemittel_id);
-    $stmt->bindParam(3, $menge);
 
     foreach ($rows as $row)
     {
-        $pflegemittel_id = $row->pflegemittel_id;
-        $menge = $row->menge;
+        $stmt->bindParam(2, $row->pflegemittel_id);
+        $stmt->bindParam(3, $row->menge);
 
         $stmt->execute();
     }
@@ -48,6 +46,10 @@ function bestellung_bereinigen($bestellung)
     if (isset($bestellung->id))
     {
         bereinigen($bestellung->id, intval);
+    }
+    else
+    {
+        $bestellung->id = NULL;
     }
 
     unset($bestellung->zeitstempel);
@@ -100,11 +102,12 @@ function bestellung_speichern()
 
     $row->zeitstempel = time();
 
-    $stmt = $pdo->prepare('INSERT INTO bestellungen (zeitstempel, empfaenger, nachricht) VALUES (?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO bestellungen VALUES (?, ?, ?, ?)');
 
-    $stmt->bindParam(1, $row->zeitstempel);
-    $stmt->bindParam(2, $row->empfaenger);
-    $stmt->bindParam(3, $row->nachricht);
+    $stmt->bindParam(1, $row->id);
+    $stmt->bindParam(2, $row->zeitstempel);
+    $stmt->bindParam(3, $row->empfaenger);
+    $stmt->bindParam(4, $row->nachricht);
 
     $stmt->execute();
 
