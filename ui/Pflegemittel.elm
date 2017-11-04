@@ -18,6 +18,8 @@ main =
 type alias Model =
     { pflegemittel : List Pflegemittel
     , ungueltigeMengen : Dict Int String
+    , wirdGespeichert : Bool
+    , meldung : String
     , letzterFehler : String
     }
 
@@ -31,6 +33,7 @@ type Msg
     | VorhandeneMengeAendern ( Int, String )
     | WirdVerwendetAendern ( Int, Bool )
     | PflegemittelSpeichern
+    | PflegemittelGespeichert (Result String (List Pflegemittel))
 
 
 eigenschaftAendern : List Pflegemittel -> Int -> (Pflegemittel -> Pflegemittel) -> List Pflegemittel
@@ -60,6 +63,11 @@ vorhandeneMengeAendern model id vorhandeneMenge =
             { model | ungueltigeMengen = Dict.insert id vorhandeneMenge model.ungueltigeMengen }
 
 
+mitNeuemPflegemittel : List Pflegemittel -> List Pflegemittel
+mitNeuemPflegemittel pflegemittel =
+    pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 True ]
+
+
 gueltigePflegemittel : List Pflegemittel -> List Pflegemittel
 gueltigePflegemittel pflegemittel =
     let
@@ -72,7 +80,7 @@ gueltigePflegemittel pflegemittel =
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model [] Dict.empty ""
+    ( Model [] Dict.empty False "" ""
     , pflegemittelLaden PflegemittelLaden
     )
 
@@ -81,7 +89,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         PflegemittelLaden (Ok pflegemittel) ->
-            ( { model | pflegemittel = pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 True ] }, Cmd.none )
+            ( { model | pflegemittel = mitNeuemPflegemittel pflegemittel }, Cmd.none )
 
         PflegemittelLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
@@ -105,19 +113,25 @@ update msg model =
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wirdVerwendet = wirdVerwendet } }, Cmd.none )
 
         PflegemittelSpeichern ->
-            ( model, pflegemittelSpeichern PflegemittelLaden <| gueltigePflegemittel model.pflegemittel )
+            ( { model | wirdGespeichert = True, meldung = "Wird gespeichert...", letzterFehler = "" }, pflegemittelSpeichern PflegemittelGespeichert <| gueltigePflegemittel model.pflegemittel )
+
+        PflegemittelGespeichert (Ok pflegemittel) ->
+            ( { model | pflegemittel = mitNeuemPflegemittel pflegemittel, wirdGespeichert = False, meldung = "Wurde gespeichert." }, Cmd.none )
+
+        PflegemittelGespeichert (Err err) ->
+            ( { model | wirdGespeichert = False, letzterFehler = err }, Cmd.none )
 
 
 view : Model -> Html Msg
 view model =
     let
         absendenEnabled =
-            Dict.isEmpty model.ungueltigeMengen
+            not model.wirdGespeichert && Dict.isEmpty model.ungueltigeMengen
 
         inhalt =
             [ pflegemittelTabelle model.pflegemittel model.ungueltigeMengen ]
     in
-        formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.letzterFehler
+        formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
 subscriptions : Model -> Sub Msg

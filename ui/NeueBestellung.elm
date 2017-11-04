@@ -21,6 +21,8 @@ type alias Model =
     , letzteBestellung : Maybe Bestellung
     , neueBestellung : Bestellung
     , ungueltigeMengen : Dict Int String
+    , wirdVersendet : Bool
+    , meldung : String
     , letzterFehler : String
     }
 
@@ -31,7 +33,8 @@ type Msg
     | EmpfaengerAendern String
     | NachrichtAendern String
     | MengeAendern ( Int, String )
-    | NeueBestellungSpeichern
+    | NeueBestellungVersenden
+    | NeueBestellungVersandt (Result String (List Bestellung))
 
 
 mittelwert : List Int -> Maybe Float
@@ -99,6 +102,19 @@ neueBestellungAnlegen pflegemittel letzteBestellung =
         Bestellung 0 empfaenger nachricht posten
 
 
+bestellungenAuswerten : Model -> List Bestellung -> Model
+bestellungenAuswerten model bestellungen =
+    let
+        letzteBestellung =
+            List.head bestellungen
+    in
+        { model
+            | bestellungen = bestellungen
+            , letzteBestellung = letzteBestellung
+            , neueBestellung = neueBestellungAnlegen model.pflegemittel letzteBestellung
+        }
+
+
 neueBestellungAendern : Model -> (Bestellung -> Bestellung) -> Model
 neueBestellungAendern model aenderung =
     { model | neueBestellung = aenderung model.neueBestellung }
@@ -120,7 +136,7 @@ neueBestellungMengeAendern model pflegemittelId menge =
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty ""
+    ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty False "" ""
     , pflegemittelLaden PflegemittelLaden
     )
 
@@ -135,18 +151,7 @@ update msg model =
             ( { model | letzterFehler = err }, Cmd.none )
 
         BestellungenLaden (Ok bestellungen) ->
-            let
-                letzteBestellung =
-                    List.head bestellungen
-
-                newModel =
-                    { model
-                        | bestellungen = bestellungen
-                        , letzteBestellung = letzteBestellung
-                        , neueBestellung = neueBestellungAnlegen model.pflegemittel letzteBestellung
-                    }
-            in
-                ( newModel, Cmd.none )
+            ( bestellungenAuswerten model bestellungen, Cmd.none )
 
         BestellungenLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
@@ -160,15 +165,25 @@ update msg model =
         MengeAendern ( pflegemittelId, menge ) ->
             ( neueBestellungMengeAendern model pflegemittelId menge, Cmd.none )
 
-        NeueBestellungSpeichern ->
-            ( model, neueBestellungSpeichern BestellungenLaden model.neueBestellung )
+        NeueBestellungVersenden ->
+            ( { model | wirdVersendet = True, meldung = "Wird versandt...", letzterFehler = "" }, neueBestellungSpeichern NeueBestellungVersandt model.neueBestellung )
+
+        NeueBestellungVersandt (Ok bestellungen) ->
+            let
+                newModel =
+                    bestellungenAuswerten model bestellungen
+            in
+                ( { newModel | wirdVersendet = False, meldung = "Wurde versandt." }, Cmd.none )
+
+        NeueBestellungVersandt (Err err) ->
+            ( { model | wirdVersendet = False, letzterFehler = err }, Cmd.none )
 
 
 view : Model -> Html Msg
 view model =
     let
         absendenEnabled =
-            Dict.isEmpty model.ungueltigeMengen
+            not model.wirdVersendet && Dict.isEmpty model.ungueltigeMengen
 
         inhalt =
             [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
@@ -176,7 +191,7 @@ view model =
             , p [] [ textArea "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
             ]
     in
-        formular NeueBestellungSpeichern "Versenden" absendenEnabled inhalt model.letzterFehler
+        formular NeueBestellungVersenden "Versenden" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
 subscriptions : Model -> Sub Msg

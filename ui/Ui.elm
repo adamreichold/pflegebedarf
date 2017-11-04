@@ -51,13 +51,14 @@ td attributes children =
         Html.td (style_ :: attributes) children
 
 
-formular : msg -> String -> Bool -> List (Html msg) -> String -> Html msg
-formular absendenMsg absendenValue absendenEnabled inhalt letzterFehler =
+formular : msg -> String -> Bool -> List (Html msg) -> String -> String -> Html msg
+formular absendenMsg absendenValue absendenEnabled inhalt meldung letzterFehler =
     form
         [ onSubmit absendenMsg, style largePadding ]
     <|
         inhalt
             ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled ] [] ]
+               , p [] [ text meldung ]
                , p [ style boldRedText, innerHtml letzterFehler ] []
                ]
 
