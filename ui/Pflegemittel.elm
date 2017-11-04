@@ -17,6 +17,7 @@ main =
 
 type alias Model =
     { pflegemittel : List Pflegemittel
+    , urspruenglichePflegemittel : List Pflegemittel
     , ungueltigeMengen : Dict Int String
     , wirdGespeichert : Bool
     , meldung : String
@@ -49,6 +50,18 @@ eigenschaftAendern pflegemittel id aenderung =
         List.map eintragAendern pflegemittel
 
 
+pflegemittelAuswerten : Model -> List Pflegemittel -> Model
+pflegemittelAuswerten model pflegemittel =
+    let
+        mitNeuemPflegemittel =
+            pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 True ]
+    in
+        { model
+            | pflegemittel = mitNeuemPflegemittel
+            , urspruenglichePflegemittel = mitNeuemPflegemittel
+        }
+
+
 vorhandeneMengeAendern : Model -> Int -> String -> Model
 vorhandeneMengeAendern model id vorhandeneMenge =
     case String.toInt vorhandeneMenge of
@@ -63,24 +76,19 @@ vorhandeneMengeAendern model id vorhandeneMenge =
             { model | ungueltigeMengen = Dict.insert id vorhandeneMenge model.ungueltigeMengen }
 
 
-mitNeuemPflegemittel : List Pflegemittel -> List Pflegemittel
-mitNeuemPflegemittel pflegemittel =
-    pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 True ]
-
-
-gueltigePflegemittel : List Pflegemittel -> List Pflegemittel
-gueltigePflegemittel pflegemittel =
+geaendertePflegemittel : Model -> List Pflegemittel
+geaendertePflegemittel model =
     let
-        neuesUngueltig =
+        geaendert =
             \pflegemittel ->
-                pflegemittel.id == 0 && (String.isEmpty pflegemittel.bezeichnung || String.isEmpty pflegemittel.einheit)
+                not <| List.member pflegemittel model.urspruenglichePflegemittel
     in
-        List.filter (not << neuesUngueltig) pflegemittel
+        List.filter geaendert model.pflegemittel
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model [] Dict.empty False "" ""
+    ( Model [] [] Dict.empty False "" ""
     , pflegemittelLaden PflegemittelLaden
     )
 
@@ -89,7 +97,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         PflegemittelLaden (Ok pflegemittel) ->
-            ( { model | pflegemittel = mitNeuemPflegemittel pflegemittel }, Cmd.none )
+            ( pflegemittelAuswerten model pflegemittel, Cmd.none )
 
         PflegemittelLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
@@ -113,10 +121,14 @@ update msg model =
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wirdVerwendet = wirdVerwendet } }, Cmd.none )
 
         PflegemittelSpeichern ->
-            ( { model | wirdGespeichert = True, meldung = "Wird gespeichert...", letzterFehler = "" }, pflegemittelSpeichern PflegemittelGespeichert <| gueltigePflegemittel model.pflegemittel )
+            ( { model | wirdGespeichert = True, meldung = "Wird gespeichert...", letzterFehler = "" }, pflegemittelSpeichern PflegemittelGespeichert <| geaendertePflegemittel model )
 
         PflegemittelGespeichert (Ok pflegemittel) ->
-            ( { model | pflegemittel = mitNeuemPflegemittel pflegemittel, wirdGespeichert = False, meldung = "Wurde gespeichert." }, Cmd.none )
+            let
+                newModel =
+                    pflegemittelAuswerten model pflegemittel
+            in
+                ( { newModel | wirdGespeichert = False, meldung = "Wurde gespeichert." }, Cmd.none )
 
         PflegemittelGespeichert (Err err) ->
             ( { model | wirdGespeichert = False, letzterFehler = err }, Cmd.none )
