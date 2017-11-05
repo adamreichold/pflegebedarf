@@ -1,6 +1,6 @@
 <?php
 
-require '/usr/lib/pflegebedarf/schema.php';
+require '/usr/lib/pflegebedarf/datenbank.php';
 require '/usr/lib/pflegebedarf/api.php';
 
 require '/usr/lib/pflegebedarf/versenden.php';
