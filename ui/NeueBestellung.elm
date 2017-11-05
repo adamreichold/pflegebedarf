@@ -134,6 +134,16 @@ neueBestellungMengeAendern model pflegemittelId menge =
             { model | ungueltigeMengen = Dict.insert pflegemittelId menge model.ungueltigeMengen }
 
 
+ohneLeerePosten : Bestellung -> Bestellung
+ohneLeerePosten bestellung =
+    let
+        nichtLeer =
+            \posten ->
+                posten.menge > 0
+    in
+        { bestellung | posten = List.filter nichtLeer bestellung.posten }
+
+
 init : ( Model, Cmd Msg )
 init =
     ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty False "" ""
@@ -166,7 +176,7 @@ update msg model =
             ( neueBestellungMengeAendern model pflegemittelId menge, Cmd.none )
 
         NeueBestellungVersenden ->
-            ( { model | wirdVersendet = True, meldung = "Wird versandt...", letzterFehler = "" }, neueBestellungSpeichern NeueBestellungVersandt model.neueBestellung )
+            ( { model | wirdVersendet = True, meldung = "Wird versandt...", letzterFehler = "" }, neueBestellungSpeichern NeueBestellungVersandt <| ohneLeerePosten model.neueBestellung )
 
         NeueBestellungVersandt (Ok bestellungen) ->
             let
