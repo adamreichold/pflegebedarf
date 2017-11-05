@@ -100,6 +100,21 @@ function schema_v3_migrieren()
     $pdo->commit();
 }
 
+function schema_v4_migrieren()
+{
+    global $pdo;
+
+    error_log('Datenbank v4 wird auf v5 migriert...');
+
+    $pdo->beginTransaction();
+
+    $pdo->exec("ALTER TABLE pflegemittel ADD COLUMN geplanter_verbrauch INTEGER NOT NULL DEFAULT 0");
+
+    $pdo->exec('PRAGMA user_version = 5');
+
+    $pdo->commit();
+}
+
 function schema_pruefen()
 {
     global $pdo;
@@ -117,6 +132,8 @@ function schema_pruefen()
         case 3:
             schema_v3_migrieren();
         case 4:
+            schema_v4_migrieren();
+        case 5:
             break;
         default:
             die("Unbekannte Version {$user_version} der Datenbank.");

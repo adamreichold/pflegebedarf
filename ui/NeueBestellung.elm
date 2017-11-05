@@ -203,7 +203,7 @@ neueBestellungTabelle : List Pflegemittel -> List Bestellung -> Maybe Bestellung
 neueBestellungTabelle pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
     let
         ueberschriften =
-            [ "Bezeichnung", "Einheit", "vorhandene Menge", "mittlere Menge", "letzte Menge", "Menge" ]
+            [ "Bezeichnung", "Einheit", "geplanter Verbrauch", "vorhandene Menge", "mittlere Menge", "letzte Menge", "Menge" ]
 
         zeile =
             \pflegemittel -> neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen
@@ -227,6 +227,7 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
     in
         [ text pflegemittel.bezeichnung
         , text pflegemittel.einheit
+        , text <| toString pflegemittel.geplanterVerbrauch
         , text <| toString pflegemittel.vorhandeneMenge
         , text mittlere
         , text letzte

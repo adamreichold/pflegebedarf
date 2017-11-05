@@ -11,6 +11,7 @@ type alias Pflegemittel =
     , einheit : String
     , herstellerUndProdukt : String
     , pznOderRef : String
+    , geplanterVerbrauch : Int
     , vorhandeneMenge : Int
     , wirdVerwendet : Bool
     }
@@ -40,12 +41,13 @@ encodeId id =
 
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
-    Decode.map7 Pflegemittel
+    Decode.map8 Pflegemittel
         (Decode.field "id" Decode.int)
         (Decode.field "bezeichnung" Decode.string)
         (Decode.field "einheit" Decode.string)
         (Decode.field "hersteller_und_produkt" Decode.string)
         (Decode.field "pzn_oder_ref" Decode.string)
+        (Decode.field "geplanter_verbrauch" Decode.int)
         (Decode.field "vorhandene_menge" Decode.int)
         (Decode.field "wird_verwendet" Decode.bool)
 
@@ -58,6 +60,7 @@ encodePflegemittel pflegemittel =
         , ( "einheit", Encode.string pflegemittel.einheit )
         , ( "hersteller_und_produkt", Encode.string pflegemittel.herstellerUndProdukt )
         , ( "pzn_oder_ref", Encode.string pflegemittel.pznOderRef )
+        , ( "geplanter_verbrauch", Encode.int pflegemittel.geplanterVerbrauch )
         , ( "vorhandene_menge", Encode.int pflegemittel.vorhandeneMenge )
         , ( "wird_verwendet", Encode.bool pflegemittel.wirdVerwendet )
         ]

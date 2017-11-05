@@ -20,6 +20,7 @@ function pflegemittel_bereinigen($pflegemittel)
     bereinigen($pflegemittel->einheit, strval);
     bereinigen($pflegemittel->hersteller_und_produkt, strval);
     bereinigen($pflegemittel->pzn_oder_ref, strval);
+    bereinigen($pflegemittel->geplanter_verbrauch, intval);
     bereinigen($pflegemittel->vorhandene_menge, intval);
     bereinigen($pflegemittel->wird_verwendet, boolval);
 }
@@ -48,7 +49,7 @@ function pflegemittel_speichern()
         die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    $stmt = $pdo->prepare('INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
     foreach ($rows as $row)
     {
@@ -64,6 +65,7 @@ function pflegemittel_speichern()
         $stmt->bindParam(6, $row->wird_verwendet);
         $stmt->bindParam(7, $row->hersteller_und_produkt);
         $stmt->bindParam(8, $row->pzn_oder_ref);
+        $stmt->bindParam(9, $row->geplanter_verbrauch);
 
         $stmt->execute();
     }
