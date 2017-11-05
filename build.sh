@@ -2,4 +2,4 @@
 
 ./ui/build.sh
 
-sudo docker build -t pflegebedarf:v1 .
+sudo docker build -t pflegebedarf .
