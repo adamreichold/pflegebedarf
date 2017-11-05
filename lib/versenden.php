@@ -1,18 +1,5 @@
 <?php
 
-function pflegemittel_laden($pflegemittel_id)
-{
-    global $pdo;
-
-    $stmt = $pdo->prepare('SELECT * FROM pflegemittel WHERE id = ?');
-
-    $stmt->bindParam(1, $pflegemittel_id);
-
-    $stmt->execute();
-
-    return $stmt->fetch();
-}
-
 function posten_formatieren($posten)
 {
     $stichpunkte = '';
@@ -26,7 +13,7 @@ function posten_formatieren($posten)
             continue;
         }
 
-        $pm = pflegemittel_laden($p->pflegemittel_id);
+        $pm = zeile_laden('SELECT * FROM pflegemittel WHERE id = ?', $p->pflegemittel_id);
 
         $stichpunkte .= "{$anstrich} {$p->menge} {$pm->einheit} {$pm->bezeichnung}";
 
@@ -54,7 +41,7 @@ function posten_formatieren($posten)
 
 function bestellung_versenden($bestellung)
 {
-    $konfiguration = parse_ini_file('/usr/lib/pflegebedarf/versenden.ini', false);
+    $konfiguration = parse_ini_file('/usr/lib/pflegebedarf/versenden.ini');
 
     if ($konfiguration === FALSE)
     {

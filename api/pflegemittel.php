@@ -27,10 +27,7 @@ function pflegemittel_bereinigen($pflegemittel)
 
 function pflegemittel_laden()
 {
-    global $pdo;
-
-    $stmt = $pdo->query('SELECT * FROM pflegemittel');
-    $rows = $stmt->fetchAll();
+    $rows = zeilen_laden('SELECT * FROM pflegemittel');
 
     array_walk($rows, pflegemittel_bereinigen);
 
@@ -40,8 +37,6 @@ function pflegemittel_laden()
 
 function pflegemittel_speichern()
 {
-    global $pdo;
-
     $rows = json_decode(file_get_contents('php://input'));
 
     if ($rows === NULL || !is_array($rows))
@@ -49,25 +44,24 @@ function pflegemittel_speichern()
         die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    $stmt = $pdo->prepare('INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-
     foreach ($rows as $row)
     {
         pflegemittel_bereinigen($row);
 
         $row->zeitstempel = time();
 
-        $stmt->bindParam(1, $row->id);
-        $stmt->bindParam(2, $row->zeitstempel);
-        $stmt->bindParam(3, $row->bezeichnung);
-        $stmt->bindParam(4, $row->einheit);
-        $stmt->bindParam(5, $row->vorhandene_menge);
-        $stmt->bindParam(6, $row->wird_verwendet);
-        $stmt->bindParam(7, $row->hersteller_und_produkt);
-        $stmt->bindParam(8, $row->pzn_oder_ref);
-        $stmt->bindParam(9, $row->geplanter_verbrauch);
-
-        $stmt->execute();
+        zeile_einfuegen(
+            'INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            $row->id,
+            $row->zeitstempel,
+            $row->bezeichnung,
+            $row->einheit,
+            $row->vorhandene_menge,
+            $row->wird_verwendet,
+            $row->hersteller_und_produkt,
+            $row->pzn_oder_ref,
+            $row->geplanter_verbrauch
+        );
     }
 }
 

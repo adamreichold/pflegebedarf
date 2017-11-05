@@ -142,13 +142,59 @@ function schema_pruefen()
 
 function mit_datenbank_verbinden()
 {
-    global $pdo;
+    global $pdo, $stmts;
 
     $pdo = new PDO('sqlite:/usr/lib/pflegebedarf/datenbank.sqlite');
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
 
+    $stmts = [];
+
     schema_pruefen();
+}
+
+function abfrage_vorbereiten($abfrage)
+{
+    global $pdo, $stmts;
+
+    if (isset($stmts[$abfrage]))
+    {
+        return $stmts[$abfrage];
+    }
+
+    $stmt = $pdo->prepare($abfrage);
+
+    $stmts[$abfrage] = $stmt;
+
+    return $stmt;
+}
+
+function abfrage_durchfuehren($abfrage, ...$parameter)
+{
+    $stmt = abfrage_vorbereiten($abfrage);
+
+    $stmt->execute($parameter);
+
+    return $stmt;
+}
+
+function zeile_laden($abfrage, ...$parameter)
+{
+    return abfrage_durchfuehren($abfrage, ...$parameter)->fetch();
+}
+
+function zeilen_laden($abfrage, ...$parameter)
+{
+    return abfrage_durchfuehren($abfrage, ...$parameter)->fetchAll();
+}
+
+function zeile_einfuegen($abfrage, ...$parameter)
+{
+    global $pdo;
+
+    $stmt = abfrage_durchfuehren($abfrage, ...$parameter);
+
+    return $pdo->lastInsertId();
 }
 
 mit_datenbank_verbinden();
