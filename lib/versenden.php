@@ -59,6 +59,11 @@ function bestellung_versenden($bestellung)
         $kopfzeilen .= "\r\nCc: {$kopie}";
     }
 
+    if (strpos($bestellung->nachricht, '{posten}') === FALSE)
+    {
+        die('Die Nachricht muss den Platzhalter {posten} enthalten.');
+    }
+
     $posten = posten_formatieren($bestellung->posten);
     $nachricht = str_replace('{posten}', $posten, $bestellung->nachricht);
 
