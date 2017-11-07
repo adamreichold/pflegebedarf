@@ -1,6 +1,6 @@
 <?php
 
-function schema_anlegen()
+function schema_v1_anlegen()
 {
     global $pdo;
 
@@ -53,7 +53,7 @@ SQL;
     $pdo->commit();
 }
 
-function schema_v1_migrieren()
+function schema_v2_migrieren()
 {
     global $pdo;
 
@@ -69,7 +69,7 @@ function schema_v1_migrieren()
     $pdo->commit();
 }
 
-function schema_v2_migrieren()
+function schema_v3_migrieren()
 {
     global $pdo;
 
@@ -84,7 +84,7 @@ function schema_v2_migrieren()
     $pdo->commit();
 }
 
-function schema_v3_migrieren()
+function schema_v4_migrieren()
 {
     global $pdo;
 
@@ -100,7 +100,7 @@ function schema_v3_migrieren()
     $pdo->commit();
 }
 
-function schema_v4_migrieren()
+function schema_v5_migrieren()
 {
     global $pdo;
 
@@ -108,9 +108,56 @@ function schema_v4_migrieren()
 
     $pdo->beginTransaction();
 
-    $pdo->exec("ALTER TABLE pflegemittel ADD COLUMN geplanter_verbrauch INTEGER NOT NULL DEFAULT 0");
+    $pdo->exec('ALTER TABLE pflegemittel ADD COLUMN geplanter_verbrauch INTEGER NOT NULL DEFAULT 0');
 
     $pdo->exec('PRAGMA user_version = 5');
+
+    $pdo->commit();
+}
+
+function schema_v6_migrieren()
+{
+    global $pdo;
+
+    error_log('Datenbank v5 wird auf v6 migriert...');
+
+    $pdo->beginTransaction();
+
+    $pdo->exec('ALTER TABLE pflegemittel RENAME TO pflegemittel_alt');
+
+    $pflegemittel_neu = <<<SQL
+CREATE TABLE pflegemittel (
+    id INTEGER PRIMARY KEY,
+    bezeichnung TEXT NOT NULL,
+    einheit TEXT NOT NULL,
+    hersteller_und_produkt TEXT NOT NULL,
+    pzn_oder_ref TEXT NOT NULL,
+    wird_verwendet INTEGER NOT NULL
+)
+SQL;
+
+    $pdo->exec($pflegemittel_neu);
+
+    $pdo->exec('INSERT INTO pflegemittel SELECT id, bezeichnung, einheit, hersteller_und_produkt, pzn_oder_ref, wird_verwendet FROM pflegemittel_alt');
+
+    $pflegemittel_bestand = <<<SQL
+CREATE TABLE pflegemittel_bestand (
+    pflegemittel_id INTEGER,
+    zeitstempel INTEGER,
+    geplanter_verbrauch INTEGER NOT NULL,
+    vorhandene_menge INTEGER NOT NULL,
+    PRIMARY KEY (pflegemittel_id, zeitstempel),
+    FOREIGN KEY (pflegemittel_id) REFERENCES pflegemittel (id)
+)
+SQL;
+
+    $pdo->exec($pflegemittel_bestand);
+
+    $pdo->exec('INSERT INTO pflegemittel_bestand SELECT id, zeitstempel, geplanter_verbrauch, vorhandene_menge FROM pflegemittel_alt');
+
+    $pdo->exec('DROP TABLE pflegemittel_alt');
+
+    $pdo->exec('PRAGMA user_version = 6');
 
     $pdo->commit();
 }
@@ -124,16 +171,18 @@ function schema_pruefen()
     switch ($user_version)
     {
         case 0:
-            schema_anlegen();
+            schema_v1_anlegen();
         case 1:
-            schema_v1_migrieren();
-        case 2:
             schema_v2_migrieren();
-        case 3:
+        case 2:
             schema_v3_migrieren();
-        case 4:
+        case 3:
             schema_v4_migrieren();
+        case 4:
+            schema_v5_migrieren();
         case 5:
+            schema_v6_migrieren();
+        case 6:
             break;
         default:
             die("Unbekannte Version {$user_version} der Datenbank.");

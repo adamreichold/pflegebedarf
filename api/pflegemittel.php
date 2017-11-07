@@ -27,7 +27,18 @@ function pflegemittel_bereinigen($pflegemittel)
 
 function pflegemittel_laden()
 {
-    $rows = zeilen_laden('SELECT * FROM pflegemittel');
+    $abfrage = <<<SQL
+WITH groesste_zeitstempel AS (
+    SELECT pflegemittel_id, MAX(zeitstempel) AS zeitstempel
+    FROM pflegemittel_bestand GROUP BY pflegemittel_id
+)
+SELECT pm.*, pmb.geplanter_verbrauch, pmb.vorhandene_menge
+FROM pflegemittel pm, pflegemittel_bestand pmb, groesste_zeitstempel gzs
+WHERE pm.id = pmb.pflegemittel_id
+AND pmb.pflegemittel_id = gzs.pflegemittel_id AND pmb.zeitstempel = gzs.zeitstempel
+SQL;
+
+    $rows = zeilen_laden($abfrage);
 
     array_walk($rows, pflegemittel_bereinigen);
 
@@ -50,17 +61,22 @@ function pflegemittel_speichern()
 
         $row->zeitstempel = time();
 
-        zeile_einfuegen(
-            'INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        $row->id = zeile_einfuegen(
+            'INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?)',
             $row->id,
-            $row->zeitstempel,
             $row->bezeichnung,
             $row->einheit,
-            $row->vorhandene_menge,
-            $row->wird_verwendet,
             $row->hersteller_und_produkt,
             $row->pzn_oder_ref,
-            $row->geplanter_verbrauch
+            $row->wird_verwendet
+        );
+
+        zeile_einfuegen(
+            'INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)',
+            $row->id,
+            $row->zeitstempel,
+            $row->geplanter_verbrauch,
+            $row->vorhandene_menge
         );
     }
 }
