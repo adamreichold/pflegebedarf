@@ -1,6 +1,6 @@
 module Ui exposing (p, formular, tabelle, textField, textArea, numberField, emailField, checkBox)
 
-import Html exposing (Html, Attribute, form, tr, th, text, input, textarea)
+import Html exposing (Html, Attribute, form, tr, th, text, textarea)
 import Html.Attributes exposing (property, type_, placeholder, value, checked, disabled, rows, style)
 import Html.Events exposing (onSubmit, onInput, onCheck)
 import Json.Encode
@@ -11,12 +11,24 @@ innerHtml html =
     property "innerHTML" (Json.Encode.string html)
 
 
+quarterWidth =
+    [ ( "width", "25%" ) ]
+
+
 fullWidth =
     [ ( "width", "100%" ) ]
 
 
 largePadding =
     [ ( "padding", "1em" ) ]
+
+
+largeWidth =
+    [ ( "width", "3em" ) ]
+
+
+largeHeight =
+    [ ( "height", "3em" ) ]
 
 
 centeredText =
@@ -51,13 +63,21 @@ td attributes children =
         Html.td (style_ :: attributes) children
 
 
+input attributes children =
+    let
+        style_ =
+            style <| largeHeight
+    in
+        Html.input (style_ :: attributes) children
+
+
 formular : msg -> String -> Bool -> List (Html msg) -> String -> String -> Html msg
 formular absendenMsg absendenValue absendenEnabled inhalt meldung letzterFehler =
     form
         [ onSubmit absendenMsg, style largePadding ]
     <|
         inhalt
-            ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled ] [] ]
+            ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled, style quarterWidth ] [] ]
                , p [] [ text meldung ]
                , p [ style boldRedText, innerHtml letzterFehler ] []
                ]
@@ -100,4 +120,4 @@ emailField placeholder_ value_ onInput_ =
 
 checkBox : Bool -> (Bool -> msg) -> Html msg
 checkBox checked_ onCheck_ =
-    input [ type_ "checkbox", checked checked_, onCheck onCheck_ ] []
+    input [ type_ "checkbox", checked checked_, onCheck onCheck_, style largeWidth ] []
