@@ -38,45 +38,45 @@ WHERE pm.id = pmb.pflegemittel_id
 AND pmb.pflegemittel_id = gzs.pflegemittel_id AND pmb.zeitstempel = gzs.zeitstempel
 SQL;
 
-    $rows = zeilen_laden($abfrage);
+    $zeilen = zeilen_laden($abfrage);
 
-    array_walk($rows, pflegemittel_bereinigen);
+    array_walk($zeilen, pflegemittel_bereinigen);
 
     header('Content-Type: application/json');
-    print(json_encode($rows));
+    print(json_encode($zeilen));
 }
 
 function pflegemittel_speichern()
 {
-    $rows = json_decode(file_get_contents('php://input'));
+    $objekte = json_decode(file_get_contents('php://input'));
 
-    if ($rows === NULL || !is_array($rows))
+    if ($objekte === NULL || !is_array($objekte))
     {
         die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    foreach ($rows as $row)
+    foreach ($objekte as $objekt)
     {
-        pflegemittel_bereinigen($row);
+        pflegemittel_bereinigen($objekt);
 
-        $row->zeitstempel = time();
+        $objekt->zeitstempel = time();
 
-        $row->id = zeile_einfuegen(
+        $objekt->id = zeile_einfuegen(
             'INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?)',
-            $row->id,
-            $row->bezeichnung,
-            $row->einheit,
-            $row->hersteller_und_produkt,
-            $row->pzn_oder_ref,
-            $row->wird_verwendet
+            $objekt->id,
+            $objekt->bezeichnung,
+            $objekt->einheit,
+            $objekt->hersteller_und_produkt,
+            $objekt->pzn_oder_ref,
+            $objekt->wird_verwendet
         );
 
         zeile_einfuegen(
             'INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)',
-            $row->id,
-            $row->zeitstempel,
-            $row->geplanter_verbrauch,
-            $row->vorhandene_menge
+            $objekt->id,
+            $objekt->zeitstempel,
+            $objekt->geplanter_verbrauch,
+            $objekt->vorhandene_menge
         );
     }
 }

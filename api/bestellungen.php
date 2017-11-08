@@ -39,59 +39,68 @@ function bestellung_bereinigen($bestellung)
 
 function bestellungen_laden()
 {
-    $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 1;
+    $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT);
 
-    $rows = zeilen_laden(
+    if ($limit === NULL)
+    {
+        $limit = 1;
+    }
+    else if ($limit === FALSE)
+    {
+        die('Der Parameter limit konnte nicht verarbeitet werden.');
+    }
+
+    $zeilen = zeilen_laden(
         'SELECT * FROM bestellungen ORDER BY zeitstempel DESC LIMIT ?',
         $limit
     );
 
-    foreach ($rows as $row)
+    foreach ($zeilen as $zeile)
     {
-        $row->posten = zeilen_laden(
+        $zeile->posten = zeilen_laden(
             'SELECT pflegemittel_id, menge FROM bestellungen_posten WHERE bestellung_id = ?',
-            $row->id
+            $zeile->id
         );
 
-        bestellung_bereinigen($row);
+        bestellung_bereinigen($zeile);
     }
 
     header('Content-Type: application/json');
-    print(json_encode($rows));
+    print(json_encode($zeilen));
 }
 
 function bestellung_speichern()
 {
-    $row = json_decode(file_get_contents('php://input'));
+    $objekt = json_decode(file_get_contents('php://input'));
 
-    if ($row === NULL || !is_object($row))
+    if ($objekt === NULL || !is_object($objekt))
     {
         die('Konnte JSON-Darstellung nicht verarbeiten.');
     }
 
-    bestellung_bereinigen($row);
+    bestellung_bereinigen($objekt);
 
-    $row->zeitstempel = time();
+    $objekt->zeitstempel = time();
 
-    $row->id = zeile_einfuegen(
+    $objekt->id = zeile_einfuegen(
         'INSERT INTO bestellungen VALUES (?, ?, ?, ?)',
-        $row->id,
-        $row->zeitstempel,
-        $row->empfaenger,
-        $row->nachricht
+        $objekt->id,
+        $objekt->zeitstempel,
+        $objekt->empfaenger,
+        $objekt->nachricht
     );
 
-    foreach ($row->posten as $posten)
+    foreach ($objekt->posten as $posten)
     {
         zeile_einfuegen(
             'INSERT INTO bestellungen_posten VALUES (?, ?, ?)',
-            $row->id,
+            $objekt->id,
             $posten->pflegemittel_id,
             $posten->menge
         );
     }
 
-    bestellung_versenden($row);
+    bestellung_versenden($objekt);
 }
 
 anfrage_verarbeiten(bestellungen_laden, bestellung_speichern);
