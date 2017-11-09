@@ -6,5 +6,7 @@ export PATH=node_modules/elm/binwrappers:$PATH
 
 mkdir -p html
 
-elm-make Pflegemittel.elm --output=html/Pflegemittel.html
-elm-make NeueBestellung.elm --output=html/NeueBestellung.html
+for MODULE in Pflegemittel NeueBestellung PflegemittelBestand
+do
+    elm-make ${MODULE}.elm --output=html/${MODULE}.html
+done

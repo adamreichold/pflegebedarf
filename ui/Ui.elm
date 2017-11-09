@@ -1,7 +1,7 @@
-module Ui exposing (p, formular, tabelle, textField, textArea, numberField, emailField, checkBox)
+module Ui exposing (p, fehlermeldung, formular, tabelle, textField, textArea, numberField, emailField, checkBox, selectBox)
 
-import Html exposing (Html, Attribute, form, tr, th, text, textarea)
-import Html.Attributes exposing (property, type_, placeholder, value, checked, disabled, rows, style)
+import Html exposing (Html, Attribute, form, tr, th, text, textarea, select, option)
+import Html.Attributes exposing (property, attribute, type_, placeholder, value, checked, disabled, rows, style)
 import Html.Events exposing (onSubmit, onInput, onCheck)
 import Json.Encode
 
@@ -71,6 +71,11 @@ input attributes children =
         Html.input (style_ :: attributes) children
 
 
+fehlermeldung : String -> Html msg
+fehlermeldung fehler =
+    p [ style boldRedText, innerHtml fehler ] []
+
+
 formular : msg -> String -> Bool -> List (Html msg) -> String -> String -> Html msg
 formular absendenMsg absendenValue absendenEnabled inhalt meldung letzterFehler =
     form
@@ -79,7 +84,7 @@ formular absendenMsg absendenValue absendenEnabled inhalt meldung letzterFehler 
         inhalt
             ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled, style quarterWidth ] [] ]
                , p [] [ text meldung ]
-               , p [ style boldRedText, innerHtml letzterFehler ] []
+               , fehlermeldung letzterFehler
                ]
 
 
@@ -121,3 +126,12 @@ emailField placeholder_ value_ onInput_ =
 checkBox : Bool -> (Bool -> msg) -> Html msg
 checkBox checked_ onCheck_ =
     input [ type_ "checkbox", checked checked_, onCheck onCheck_, style largeWidth ] []
+
+
+selectBox : List ( String, String ) -> (String -> msg) -> Html msg
+selectBox options onInput_ =
+    let
+        optionItem =
+            \( value_, text_ ) -> option [ attribute "value" value_ ] [ text text_ ]
+    in
+        select [ onInput onInput_ ] <| List.map optionItem options
