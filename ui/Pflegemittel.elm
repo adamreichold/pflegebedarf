@@ -11,7 +11,7 @@ main =
         { init = init
         , update = update
         , view = view
-        , subscriptions = subscriptions
+        , subscriptions = \model -> Sub.none
         }
 
 
@@ -28,13 +28,13 @@ type alias Model =
 
 type Msg
     = PflegemittelLaden (Result String (List Pflegemittel))
-    | BezeichnungAendern ( Int, String )
-    | EinheitAendern ( Int, String )
-    | HerstellerUndProduktAendern ( Int, String )
-    | PznOderRefAendern ( Int, String )
-    | GeplanterVerbrauchAendern ( Int, String )
-    | VorhandeneMengeAendern ( Int, String )
-    | WirdVerwendetAendern ( Int, Bool )
+    | BezeichnungAendern Int String
+    | EinheitAendern Int String
+    | HerstellerUndProduktAendern Int String
+    | PznOderRefAendern Int String
+    | GeplanterVerbrauchAendern Int String
+    | VorhandeneMengeAendern Int String
+    | WirdVerwendetAendern Int Bool
     | PflegemittelSpeichern
     | PflegemittelGespeichert (Result String (List Pflegemittel))
 
@@ -118,25 +118,25 @@ update msg model =
         PflegemittelLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
 
-        BezeichnungAendern ( id, bezeichnung ) ->
+        BezeichnungAendern id bezeichnung ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | bezeichnung = bezeichnung } }, Cmd.none )
 
-        EinheitAendern ( id, einheit ) ->
+        EinheitAendern id einheit ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | einheit = einheit } }, Cmd.none )
 
-        HerstellerUndProduktAendern ( id, herstellerUndProdukt ) ->
+        HerstellerUndProduktAendern id herstellerUndProdukt ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | herstellerUndProdukt = herstellerUndProdukt } }, Cmd.none )
 
-        PznOderRefAendern ( id, pznOderRef ) ->
+        PznOderRefAendern id pznOderRef ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | pznOderRef = pznOderRef } }, Cmd.none )
 
-        GeplanterVerbrauchAendern ( id, geplanterVerbrauch ) ->
+        GeplanterVerbrauchAendern id geplanterVerbrauch ->
             ( geplanterVerbrauchAendern model id geplanterVerbrauch, Cmd.none )
 
-        VorhandeneMengeAendern ( id, vorhandeneMenge ) ->
+        VorhandeneMengeAendern id vorhandeneMenge ->
             ( vorhandeneMengeAendern model id vorhandeneMenge, Cmd.none )
 
-        WirdVerwendetAendern ( id, wirdVerwendet ) ->
+        WirdVerwendetAendern id wirdVerwendet ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wirdVerwendet = wirdVerwendet } }, Cmd.none )
 
         PflegemittelSpeichern ->
@@ -165,11 +165,6 @@ view model =
         formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
-
-
 pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Dict Int String -> Html Msg
 pflegemittelTabelle pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
     let
@@ -195,11 +190,11 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
                 (toString <| pflegemittel.vorhandeneMenge)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
-        [ textField pflegemittel.bezeichnung <| curry BezeichnungAendern <| pflegemittel.id
-        , textField pflegemittel.einheit <| curry EinheitAendern <| pflegemittel.id
-        , textField pflegemittel.herstellerUndProdukt <| curry HerstellerUndProduktAendern <| pflegemittel.id
-        , textField pflegemittel.pznOderRef <| curry PznOderRefAendern <| pflegemittel.id
-        , numberField "0" geplanterVerbrauch <| curry GeplanterVerbrauchAendern <| pflegemittel.id
-        , numberField "0" vorhandeneMenge <| curry VorhandeneMengeAendern <| pflegemittel.id
-        , checkBox pflegemittel.wirdVerwendet <| curry WirdVerwendetAendern <| pflegemittel.id
+        [ textField pflegemittel.bezeichnung <| BezeichnungAendern pflegemittel.id
+        , textField pflegemittel.einheit <| EinheitAendern pflegemittel.id
+        , textField pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
+        , textField pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
+        , numberField "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
+        , numberField "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
+        , checkBox pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
         ]

@@ -11,7 +11,7 @@ main =
         { init = init
         , update = update
         , view = view
-        , subscriptions = subscriptions
+        , subscriptions = \model -> Sub.none
         }
 
 
@@ -32,7 +32,7 @@ type Msg
     | BestellungenLaden (Result String (List Bestellung))
     | EmpfaengerAendern String
     | NachrichtAendern String
-    | MengeAendern ( Int, String )
+    | MengeAendern Int String
     | NeueBestellungVersenden
     | NeueBestellungVersandt (Result String (List Bestellung))
 
@@ -172,7 +172,7 @@ update msg model =
         NachrichtAendern nachricht ->
             ( neueBestellungAendern model <| \val -> { val | nachricht = nachricht }, Cmd.none )
 
-        MengeAendern ( pflegemittelId, menge ) ->
+        MengeAendern pflegemittelId menge ->
             ( neueBestellungMengeAendern model pflegemittelId menge, Cmd.none )
 
         NeueBestellungVersenden ->
@@ -202,11 +202,6 @@ view model =
             ]
     in
         formular NeueBestellungVersenden "Versenden" absendenEnabled inhalt model.meldung model.letzterFehler
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
 
 
 neueBestellungTabelle : List Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> Html Msg
@@ -241,5 +236,5 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
         , text <| toString pflegemittel.vorhandeneMenge
         , text mittlere
         , text letzte
-        , numberField "0" neue <| curry MengeAendern <| pflegemittel.id
+        , numberField "0" neue <| MengeAendern pflegemittel.id
         ]
