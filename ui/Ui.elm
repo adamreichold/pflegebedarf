@@ -1,6 +1,6 @@
 module Ui exposing (p, fehlermeldung, formular, tabelle, textField, textArea, numberField, emailField, checkBox, selectBox)
 
-import Html exposing (Html, Attribute, form, tr, th, text, textarea, select, option)
+import Html exposing (Html, Attribute, form, tbody, tr, th, text, textarea, select, option)
 import Html.Attributes exposing (property, attribute, type_, placeholder, value, checked, disabled, rows, style)
 import Html.Events exposing (onSubmit, onInput, onCheck)
 import Json.Encode
@@ -39,6 +39,10 @@ boldRedText =
     [ ( "font-weight", "bold" ), ( "color", "red" ) ]
 
 
+stickyTop =
+    [ ( "position", "sticky" ), ( "top", "0" ) ]
+
+
 p attributes children =
     let
         style_ =
@@ -53,6 +57,14 @@ table attributes children =
             style fullWidth
     in
         Html.table (style_ :: attributes) children
+
+
+thead attributes children =
+    let
+        style_ =
+            style stickyTop
+    in
+        Html.thead (style_ :: attributes) children
 
 
 td attributes children =
@@ -100,7 +112,10 @@ tabelleZeile spalten =
 
 tabelle : List String -> List (List (Html msg)) -> Html msg
 tabelle ueberschriften zeilen =
-    table [] <| (tabelleKopfzeile ueberschriften) :: (List.map tabelleZeile zeilen)
+    table []
+        [ thead [] [ tabelleKopfzeile ueberschriften ]
+        , tbody [] <| List.map tabelleZeile zeilen
+        ]
 
 
 textField : String -> (String -> msg) -> Html msg
