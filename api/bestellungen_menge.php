@@ -14,6 +14,7 @@ $abfrage = <<<SQL
 SELECT b.zeitstempel, bp.menge
 FROM bestellungen b, bestellungen_posten bp
 WHERE bp.bestellung_id = b.id AND bp.pflegemittel_id = ?
+ORDER BY b.zeitstempel
 SQL;
 
 $zeilen = zeilen_laden($abfrage, $id);

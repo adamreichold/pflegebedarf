@@ -10,7 +10,7 @@ if ($id === NULL || $id === FALSE)
     die('Der Parameter id fehlt oder konnte nicht verarbeitet werden.');
 }
 
-$zeilen = zeilen_laden('SELECT zeitstempel, geplanter_verbrauch, vorhandene_menge FROM pflegemittel_bestand WHERE pflegemittel_id = ?', $id);
+$zeilen = zeilen_laden('SELECT zeitstempel, geplanter_verbrauch, vorhandene_menge FROM pflegemittel_bestand WHERE pflegemittel_id = ? ORDER BY zeitstempel', $id);
 
 foreach ($zeilen as $zeile)
 {
