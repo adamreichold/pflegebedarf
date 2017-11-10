@@ -3,9 +3,11 @@ module PflegemittelBestand exposing (main)
 import Api exposing (Pflegemittel, PflegemittelBestand, BestellungMenge, pflegemittelLaden, pflegemittelBestandLaden, bestellungenMengeLaden)
 import Ui exposing (p, selectBox, fehlermeldung)
 import Html exposing (Html, div)
-import Time exposing (inSeconds)
-import Date exposing (Date, toTime)
-import Plot exposing (Series, DataPoint, viewSeries, dots, circle, triangle, square)
+import Svg exposing (Svg)
+import Svg.Attributes exposing (stroke)
+import Time exposing (inSeconds, second)
+import Date exposing (Date, toTime, fromTime, day, month)
+import Plot exposing (Series, Axis, DataPoint, LabelCustomizations, viewSeriesCustom, defaultSeriesPlotCustomizations, customAxis, viewSquare, viewLabel)
 
 
 main =
@@ -96,24 +98,58 @@ update msg model =
             ( { model | letzterFehler = err }, Cmd.none )
 
 
-datenpunkt : (Float -> Float -> DataPoint msg) -> (Datenpunkt -> DataPoint msg)
+datenpunkt : (Float -> Float -> DataPoint Msg) -> (Datenpunkt -> DataPoint Msg)
 datenpunkt form =
     \{ zeitstempel, wert } -> form (inSeconds <| toTime <| zeitstempel) (toFloat wert)
 
 
+zeitreihe : Svg Msg -> (Model -> List Datenpunkt) -> Series Model Msg
+zeitreihe form eigenschaft =
+    { axis = Plot.axisAtMin
+    , interpolation = Plot.Linear Nothing [ stroke "lightgrey" ]
+    , toDataPoints = List.map (datenpunkt <| Plot.dot <| form) << eigenschaft
+    }
+
+
 geplanterVerbrauch : Series Model Msg
 geplanterVerbrauch =
-    dots <| List.map (datenpunkt circle) << .geplanterVerbrauch
+    zeitreihe (viewSquare 3 "red") .geplanterVerbrauch
 
 
 vorhandeneMenge : Series Model Msg
 vorhandeneMenge =
-    dots <| List.map (datenpunkt triangle) << .vorhandeneMenge
+    zeitreihe (viewSquare 3 "green") .vorhandeneMenge
 
 
 bestellteMenge : Series Model Msg
 bestellteMenge =
-    dots <| List.map (datenpunkt square) << .bestellteMenge
+    zeitreihe (viewSquare 3 "blue") .bestellteMenge
+
+
+tagUndMontag : Float -> LabelCustomizations
+tagUndMontag position =
+    let
+        datum =
+            fromTime <| position * second
+
+        text =
+            (toString <| day datum) ++ ". " ++ (toString <| month datum)
+    in
+        { position = position
+        , view = viewLabel [] text
+        }
+
+
+zeitachse : Axis
+zeitachse =
+    customAxis <|
+        \summary ->
+            { position = Plot.closestToZero
+            , axisLine = Just (Plot.simpleLine summary)
+            , ticks = List.map Plot.simpleTick (Plot.decentPositions summary)
+            , labels = List.map tagUndMontag (Plot.decentPositions summary)
+            , flipAnchor = False
+            }
 
 
 view : Model -> Html Msg
@@ -124,9 +160,15 @@ view model =
 
         options =
             List.map optionItem model.pflegemittel
+
+        plotCustomizations =
+            { defaultSeriesPlotCustomizations
+                | horizontalAxis = zeitachse
+                , toDomainLowest = min 0
+            }
     in
         div []
             [ p [] [ selectBox options PflegemittelAuswaehlen ]
-            , viewSeries [ geplanterVerbrauch, vorhandeneMenge, bestellteMenge ] model
+            , viewSeriesCustom plotCustomizations [ geplanterVerbrauch, vorhandeneMenge, bestellteMenge ] model
             , fehlermeldung model.letzterFehler
             ]
