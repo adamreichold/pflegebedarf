@@ -146,7 +146,10 @@ checkBox checked_ onCheck_ =
 selectBox : List ( String, String ) -> (String -> msg) -> Html msg
 selectBox options onInput_ =
     let
+        style_ =
+            style <| quarterWidth ++ largeHeight
+
         optionItem =
             \( value_, text_ ) -> option [ attribute "value" value_ ] [ text text_ ]
     in
-        select [ onInput onInput_ ] <| List.map optionItem options
+        select [ onInput onInput_, style_ ] <| List.map optionItem options
