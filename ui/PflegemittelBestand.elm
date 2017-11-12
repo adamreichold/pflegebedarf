@@ -2,9 +2,10 @@ module PflegemittelBestand exposing (main)
 
 import Api exposing (Pflegemittel, PflegemittelBestand, BestellungMenge, pflegemittelLaden, pflegemittelBestandLaden, bestellungenMengeLaden)
 import Ui exposing (p, selectBox, fehlermeldung)
-import Html exposing (Html, div)
-import Svg exposing (Svg)
-import Svg.Attributes exposing (stroke)
+import Html exposing (Html, div, ul, li, text)
+import Html.Attributes exposing (style)
+import Svg exposing (Svg, foreignObject)
+import Svg.Attributes exposing (stroke, x, y, width, height)
 import Time exposing (inSeconds, second)
 import Date exposing (Date, toTime, fromTime, day, month)
 import Plot exposing (Series, Axis, DataPoint, LabelCustomizations, viewSeriesCustom, defaultSeriesPlotCustomizations, customAxis, viewSquare, viewLabel)
@@ -126,6 +127,21 @@ bestellteMenge =
     zeitreihe (viewSquare 3 "blue") .bestellteMenge
 
 
+legende : Svg Msg
+legende =
+    let
+        listItem color label =
+            li [ style [ ( "list-style-type", "square" ), ( "color", color ), ( "font-size", "xx-small" ) ] ] [ text label ]
+    in
+        foreignObject [ x "-7.5em", y "0", width "10em", height "5em" ]
+            [ ul []
+                [ listItem "red" "geplanter Verbrauch"
+                , listItem "green" "vorhandene Menge"
+                , listItem "blue" "bestellte Menge"
+                ]
+            ]
+
+
 tagUndMontag : Float -> LabelCustomizations
 tagUndMontag position =
     let
@@ -165,6 +181,7 @@ view model =
             { defaultSeriesPlotCustomizations
                 | horizontalAxis = zeitachse
                 , toDomainLowest = min 0
+                , junk = \summary -> [ Plot.junk legende summary.x.dataMax summary.y.max ]
             }
     in
         div []
