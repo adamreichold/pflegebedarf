@@ -1,7 +1,7 @@
 module Pflegemittel exposing (main)
 
 import Api exposing (Pflegemittel, pflegemittelLaden, pflegemittelSpeichern)
-import Ui exposing (formular, tabelle, textField, numberField, checkBox)
+import Ui exposing (formular, tabelle, textfeld, zahlenfeld, ankreuzfeld)
 import Html exposing (Html)
 import Dict exposing (Dict)
 
@@ -190,11 +190,11 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
                 (toString <| pflegemittel.vorhandeneMenge)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
-        [ textField pflegemittel.bezeichnung <| BezeichnungAendern pflegemittel.id
-        , textField pflegemittel.einheit <| EinheitAendern pflegemittel.id
-        , textField pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
-        , textField pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
-        , numberField "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
-        , numberField "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
-        , checkBox pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
+        [ textfeld pflegemittel.bezeichnung <| BezeichnungAendern pflegemittel.id
+        , textfeld pflegemittel.einheit <| EinheitAendern pflegemittel.id
+        , textfeld pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
+        , textfeld pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
+        , zahlenfeld "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
+        , zahlenfeld "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
+        , ankreuzfeld pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
         ]

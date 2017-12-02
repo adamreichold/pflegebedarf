@@ -1,4 +1,4 @@
-module Ui exposing (p, fehlermeldung, formular, tabelle, textField, textArea, numberField, emailField, checkBox, selectBox)
+module Ui exposing (p, fehlermeldung, formular, tabelle, textfeld, textbereich, zahlenfeld, emailfeld, ankreuzfeld, auswahlfeld)
 
 import Html exposing (Html, Attribute, form, tbody, tr, th, text, textarea, select, option)
 import Html.Attributes exposing (property, attribute, type_, placeholder, value, checked, disabled, rows, style)
@@ -118,33 +118,33 @@ tabelle ueberschriften zeilen =
         ]
 
 
-textField : String -> (String -> msg) -> Html msg
-textField value_ onInput_ =
+textfeld : String -> (String -> msg) -> Html msg
+textfeld value_ onInput_ =
     input [ type_ "text", value value_, onInput onInput_, style fullWidth ] []
 
 
-textArea : String -> String -> (String -> msg) -> Html msg
-textArea placeholder_ value_ onInput_ =
+textbereich : String -> String -> (String -> msg) -> Html msg
+textbereich placeholder_ value_ onInput_ =
     textarea [ placeholder placeholder_, value value_, onInput onInput_, rows 20, style fullWidth ] []
 
 
-numberField : String -> String -> (String -> msg) -> Html msg
-numberField min_ value_ onInput_ =
+zahlenfeld : String -> String -> (String -> msg) -> Html msg
+zahlenfeld min_ value_ onInput_ =
     input [ type_ "number", Html.Attributes.min min_, value value_, onInput onInput_, style fullWidth ] []
 
 
-emailField : String -> String -> (String -> msg) -> Html msg
-emailField placeholder_ value_ onInput_ =
+emailfeld : String -> String -> (String -> msg) -> Html msg
+emailfeld placeholder_ value_ onInput_ =
     input [ type_ "email", placeholder placeholder_, value value_, onInput onInput_, style fullWidth ] []
 
 
-checkBox : Bool -> (Bool -> msg) -> Html msg
-checkBox checked_ onCheck_ =
+ankreuzfeld : Bool -> (Bool -> msg) -> Html msg
+ankreuzfeld checked_ onCheck_ =
     input [ type_ "checkbox", checked checked_, onCheck onCheck_, style largeWidth ] []
 
 
-selectBox : List ( String, String ) -> (String -> msg) -> Html msg
-selectBox options onInput_ =
+auswahlfeld : List ( String, String ) -> (String -> msg) -> Html msg
+auswahlfeld options onInput_ =
     let
         style_ =
             style <| quarterWidth ++ largeHeight

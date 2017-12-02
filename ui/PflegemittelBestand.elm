@@ -1,7 +1,7 @@
 module PflegemittelBestand exposing (main)
 
 import Api exposing (Pflegemittel, PflegemittelBestand, BestellungMenge, pflegemittelLaden, pflegemittelBestandLaden, bestellungenMengeLaden)
-import Ui exposing (p, selectBox, fehlermeldung)
+import Ui exposing (p, auswahlfeld, fehlermeldung)
 import Html exposing (Html, div, ul, li, text)
 import Html.Attributes exposing (style)
 import Svg exposing (Svg, foreignObject)
@@ -185,7 +185,7 @@ view model =
             }
     in
         div []
-            [ p [] [ selectBox options PflegemittelAuswaehlen ]
+            [ p [] [ auswahlfeld options PflegemittelAuswaehlen ]
             , viewSeriesCustom plotCustomizations [ geplanterVerbrauch, vorhandeneMenge, bestellteMenge ] model
             , fehlermeldung model.letzterFehler
             ]

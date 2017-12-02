@@ -1,7 +1,7 @@
 module NeueBestellung exposing (main)
 
 import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLaden, bestellungenLaden, neueBestellungSpeichern)
-import Ui exposing (p, formular, tabelle, textField, textArea, numberField, emailField, checkBox)
+import Ui exposing (p, formular, tabelle, textbereich, zahlenfeld, emailfeld)
 import Html exposing (Html, text)
 import Dict exposing (Dict)
 
@@ -197,8 +197,8 @@ view model =
 
         inhalt =
             [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
-            , p [] [ emailField "Empfänger" model.neueBestellung.empfaenger EmpfaengerAendern ]
-            , p [] [ textArea "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
+            , p [] [ emailfeld "Empfänger" model.neueBestellung.empfaenger EmpfaengerAendern ]
+            , p [] [ textbereich "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
             ]
     in
         formular NeueBestellungVersenden "Versenden" absendenEnabled inhalt model.meldung model.letzterFehler
@@ -236,5 +236,5 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
         , text <| toString pflegemittel.vorhandeneMenge
         , text mittlere
         , text letzte
-        , numberField "0" neue <| MengeAendern pflegemittel.id
+        , zahlenfeld "0" neue <| MengeAendern pflegemittel.id
         ]
