@@ -174,7 +174,7 @@ pflegemittelLaden : (Result String (List Pflegemittel) -> msg) -> Cmd msg
 pflegemittelLaden msg =
     let
         url =
-            "../api/pflegemittel.php"
+            "/cgi-bin/pflegebedarf/api/pflegemittel"
 
         decoder =
             Decode.list decodePflegemittel
@@ -186,7 +186,7 @@ pflegemittelSpeichern : (Result String (List Pflegemittel) -> msg) -> List Pfleg
 pflegemittelSpeichern msg pflegemittel =
     let
         url =
-            "../api/pflegemittel.php"
+            "/cgi-bin/pflegebedarf/api/pflegemittel"
 
         decoder =
             Decode.list decodePflegemittel
@@ -201,7 +201,7 @@ bestellungenLaden : (Result String (List Bestellung) -> msg) -> Cmd msg
 bestellungenLaden msg =
     let
         url =
-            "../api/bestellungen.php?limit=3"
+            "/cgi-bin/pflegebedarf/api/bestellungen?limit=3"
 
         decoder =
             Decode.list decodeBestellung
@@ -213,7 +213,7 @@ neueBestellungSpeichern : (Result String (List Bestellung) -> msg) -> Bestellung
 neueBestellungSpeichern msg bestellung =
     let
         url =
-            "../api/bestellungen.php?limit=3"
+            "/cgi-bin/pflegebedarf/api/bestellungen?limit=3"
 
         decoder =
             Decode.list decodeBestellung
@@ -228,7 +228,7 @@ pflegemittelBestandLaden : Int -> (Result String (List PflegemittelBestand) -> m
 pflegemittelBestandLaden id msg =
     let
         url =
-            "../api/pflegemittel_bestand.php?id=" ++ toString id
+            "/cgi-bin/pflegebedarf/api/pflegemittel_bestand?id=" ++ toString id
 
         decoder =
             Decode.list decodePflegemittelBestand
@@ -240,7 +240,7 @@ bestellungenMengeLaden : Int -> (Result String (List BestellungMenge) -> msg) ->
 bestellungenMengeLaden id msg =
     let
         url =
-            "../api/bestellungen_menge.php?id=" ++ toString id
+            "/cgi-bin/pflegebedarf/api/bestellungen_menge?id=" ++ toString id
 
         decoder =
             Decode.list decodeBestellungMenge
