@@ -36,6 +36,20 @@ struct Pflegemittel {
 }
 
 #[ derive( Serialize, Deserialize ) ]
+struct Bestellung {
+    id: Option< i64 >,
+    empfaenger: String,
+    nachricht: String,
+    posten: Vec< Posten >
+}
+
+#[ derive( Serialize, Deserialize ) ]
+struct Posten {
+    pflegemittel_id: i64,
+    menge: u32
+}
+
+#[ derive( Serialize, Deserialize ) ]
 struct Bestand {
     zeitstempel: i64,
     geplanter_verbrauch: u32,
@@ -75,6 +89,22 @@ CREATE TABLE pflegemittel_bestand (
     geplanter_verbrauch INTEGER NOT NULL,
     vorhandene_menge INTEGER NOT NULL,
     PRIMARY KEY (pflegemittel_id, zeitstempel),
+    FOREIGN KEY (pflegemittel_id) REFERENCES pflegemittel (id)
+);
+
+CREATE TABLE bestellungen (
+    id INTEGER PRIMARY KEY,
+    zeitstempel INTEGER NOT NULL,
+    empfaenger TEXT NOT NULL,
+    nachricht TEXT NOT NULL
+);
+
+CREATE TABLE bestellungen_posten (
+    bestellung_id INTEGER,
+    pflegemittel_id INTEGER,
+    menge INTEGER NOT NULL,
+    PRIMARY KEY (bestellung_id, pflegemittel_id),
+    FOREIGN KEY (bestellung_id) REFERENCES bestellungen (id),
     FOREIGN KEY (pflegemittel_id) REFERENCES pflegemittel (id)
 );
 
@@ -163,6 +193,63 @@ fn pflegemittel_speichern( txn: &Transaction ) {
     }
 
     pflegemittel_laden( txn );
+}
+
+fn bestellungen_laden( txn: &Transaction, limit: u32 ) {
+
+    let mut b_stmt = txn.prepare( "SELECT b.* FROM bestellungen b ORDER BY b.zeitstempel DESC LIMIT ?" ).unwrap();
+
+    let mut bp_stmt = txn.prepare( "SELECT bp.pflegemittel_id, bp.menge FROM bestellungen_posten bp WHERE bp.bestellung_id = ?" ).unwrap();
+
+    let bestellungen = collect_rows( &mut b_stmt, &[ &limit ], | row | {
+
+        let id: i64 = row.get( "id" );
+
+        let posten = collect_rows( &mut bp_stmt, &[ &id ], | row | {
+
+            Posten{
+                pflegemittel_id: row.get( "pflegemittel_id" ),
+                menge: row.get( "menge" )
+            }
+
+        } );
+
+        Bestellung{
+            id: Some( id ),
+            empfaenger: row.get( "empfaenger" ),
+            nachricht: row.get( "nachricht" ),
+            posten: posten
+        }
+
+    } );
+
+    write_to_stdout( &bestellungen );
+}
+
+fn bestellung_speichern( txn: &Transaction, limit: u32 ) {
+
+    let mut bestellung: Bestellung = from_reader( stdin() ).unwrap();
+
+    let zeitstempel = get_time().sec;
+
+    let mut b_stmt = txn.prepare( "INSERT INTO bestellungen VALUES (?, ?, ?, ?)" ).unwrap();
+
+    let mut bp_stmt = txn.prepare( "INSERT INTO bestellungen_posten VALUES (?, ?, ?)" ).unwrap();
+
+    bestellung.id = None;
+
+    b_stmt.execute( &[ &bestellung.id, &zeitstempel, &bestellung.empfaenger, &bestellung.nachricht ] ).unwrap();
+
+    bestellung.id = Some( txn.last_insert_rowid() );
+
+    for posten in bestellung.posten.iter() {
+
+        bp_stmt.execute( &[ &bestellung.id, &posten.pflegemittel_id, &posten.menge ] ).unwrap();
+    }
+
+    // TODO: bestellung_versenden
+
+    bestellungen_laden( txn, limit );
 }
 
 fn bestand_laden( txn: &Transaction, id: i64 ) {
@@ -257,6 +344,10 @@ fn main() {
         ( "GET", "/pflegemittel" ) => pflegemittel_laden( &txn ),
 
         ( "POST", "/pflegemittel" ) => pflegemittel_speichern( &txn ),
+
+        ( "GET", "/bestellungen" ) => bestellungen_laden( &txn, params.limit.unwrap_or( 1 ) ),
+
+        ( "POST", "/bestellungen" ) => bestellung_speichern( &txn, params.limit.unwrap_or( 1 ) ),
 
         ( "GET", "/pflegemittel_bestand" ) => bestand_laden( &txn, params.id.unwrap() ),
 
