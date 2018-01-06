@@ -7,14 +7,14 @@ extern crate serde;
 #[ macro_use ]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate ini;
 
-
-use std::io::prelude::*;
 
 use std::io::{ stdout, stdin };
 use std::env::var;
+use std::process::{ Command, Stdio };
 
-use time::get_time;
+use time::{ Timespec, get_time, at, strftime };
 
 use rusqlite::{ Connection, Transaction, Statement, Row };
 use rusqlite::types::ToSql;
@@ -22,10 +22,13 @@ use rusqlite::types::ToSql;
 use serde::Serialize;
 use serde_json::{ to_writer, from_reader };
 
+use ini::Ini;
+
 
 #[ derive( Serialize, Deserialize ) ]
 struct Pflegemittel {
     id: Option< i64 >,
+    zeitstempel: Option< i64 >,
     bezeichnung: String,
     einheit: String,
     hersteller_und_produkt: String,
@@ -35,18 +38,62 @@ struct Pflegemittel {
     wird_verwendet: bool
 }
 
+impl Pflegemittel {
+
+    fn from_row( row: &Row ) -> Pflegemittel {
+
+        Pflegemittel {
+            id: Some( row.get( "id" ) ),
+            zeitstempel: row.get( "zeitstempel" ),
+            bezeichnung: row.get( "bezeichnung" ),
+            einheit: row.get( "einheit" ),
+            hersteller_und_produkt: row.get( "hersteller_und_produkt" ),
+            pzn_oder_ref: row.get( "pzn_oder_ref" ),
+            geplanter_verbrauch: row.get( "geplanter_verbrauch" ),
+            vorhandene_menge: row.get( "vorhandene_menge" ),
+            wird_verwendet: row.get( "wird_verwendet" )
+        }
+    }
+}
+
 #[ derive( Serialize, Deserialize ) ]
 struct Bestellung {
     id: Option< i64 >,
+    zeitstempel: Option< i64 >,
     empfaenger: String,
     nachricht: String,
     posten: Vec< Posten >
+}
+
+impl Bestellung {
+
+    fn from_row( row: &Row ) -> Bestellung {
+
+        Bestellung{
+            id: Some( row.get( "id" ) ),
+            zeitstempel: row.get( "zeitstempel" ),
+            empfaenger: row.get( "empfaenger" ),
+            nachricht: row.get( "nachricht" ),
+            posten: Vec::new()
+        }
+    }
 }
 
 #[ derive( Serialize, Deserialize ) ]
 struct Posten {
     pflegemittel_id: i64,
     menge: u32
+}
+
+impl Posten {
+
+    fn from_row( row: &Row ) -> Posten {
+
+        Posten{
+            pflegemittel_id: row.get( "pflegemittel_id" ),
+            menge: row.get( "menge" )
+        }
+    }
 }
 
 #[ derive( Serialize, Deserialize ) ]
@@ -109,7 +156,6 @@ CREATE TABLE bestellungen_posten (
 );
 
 PRAGMA user_version = 6;
-
                 "# ).unwrap();
 
             txn.commit().unwrap();
@@ -121,17 +167,61 @@ PRAGMA user_version = 6;
         }
 
         _ => {
-            panic!( "Unsupported schema version!" );
+            die( 500, "Unbekannte Version der Datenbank!" );
         }
 
     };
 }
 
-fn write_to_stdout< T >( value: &T ) where T: Serialize {
+trait Die< T > {
+
+    fn die( self, status: i32, msg: &'static str ) -> T;
+}
+
+impl< T > Die< T > for Option< T > {
+
+    fn die( self, status: i32, msg: &'static str ) -> T {
+
+        match self {
+
+            Some( t ) => t,
+
+            None => die( status, msg )
+        }
+    }
+}
+
+impl< V, E > Die< V > for Result< V, E > {
+
+    fn die( self, status: i32, msg: &'static str ) -> V {
+
+        match self {
+
+            Ok( v ) => v,
+
+            Err( _ ) => die( status, msg )
+        }
+    }
+}
+
+fn die( status: i32, msg: &'static str ) -> ! {
+
+    use std::io::Write;
 
     let mut writer = stdout();
 
-    writer.write_all( b"Content-Type: application/json; charset=utf8\n\n" ).unwrap();
+    write!( &mut writer, "Content-Type: text/plain; charset=utf8\r\nStatus: {}\r\n\r\n{}", status, msg ).unwrap();
+
+    panic!( msg )
+}
+
+fn write_to_stdout< T >( value: &T ) where T: Serialize {
+
+    use std::io::Write;
+
+    let mut writer = stdout();
+
+    writer.write_all( b"Content-Type: application/json; charset=utf8\r\n\r\n" ).unwrap();
 
     to_writer( writer, value ).unwrap();
 }
@@ -149,33 +239,20 @@ WITH groesste_zeitstempel AS (
     SELECT pflegemittel_id, MAX(zeitstempel) AS zeitstempel
     FROM pflegemittel_bestand GROUP BY pflegemittel_id
 )
-SELECT pm.*, pmb.geplanter_verbrauch, pmb.vorhandene_menge
+SELECT pm.*, pmb.zeitstempel, pmb.geplanter_verbrauch, pmb.vorhandene_menge
 FROM pflegemittel pm, pflegemittel_bestand pmb, groesste_zeitstempel gzs
 WHERE pm.id = pmb.pflegemittel_id
 AND pmb.pflegemittel_id = gzs.pflegemittel_id AND pmb.zeitstempel = gzs.zeitstempel
         "# ).unwrap();
 
-    let pflegemittel = collect_rows( &mut stmt, &[], | row | {
-
-        Pflegemittel {
-            id: Some( row.get( "id" ) ),
-            bezeichnung: row.get( "bezeichnung" ),
-            einheit: row.get( "einheit" ),
-            hersteller_und_produkt: row.get( "hersteller_und_produkt" ),
-            pzn_oder_ref: row.get( "pzn_oder_ref" ),
-            geplanter_verbrauch: row.get( "geplanter_verbrauch" ),
-            vorhandene_menge: row.get( "vorhandene_menge" ),
-            wird_verwendet: row.get( "wird_verwendet" )
-        }
-
-    } );
+    let pflegemittel = collect_rows( &mut stmt, &[], Pflegemittel::from_row );
 
     write_to_stdout( &pflegemittel );
 }
 
 fn pflegemittel_speichern( txn: &Transaction ) {
 
-    let pflegemittel: Vec< Pflegemittel > = from_reader( stdin() ).unwrap();
+    let pflegemittel: Vec< Pflegemittel > = from_reader( stdin() ).die( 400, "Konnte JSON-Darstellung nicht verarbeiten." );
 
     let zeitstempel = get_time().sec;
 
@@ -188,14 +265,17 @@ fn pflegemittel_speichern( txn: &Transaction ) {
         pm_stmt.execute( &[ &pm.id, &pm.bezeichnung, &pm.einheit, &pm.hersteller_und_produkt, &pm.pzn_oder_ref, &pm.wird_verwendet ] ).unwrap();
 
         pm.id = Some( txn.last_insert_rowid() );
+        pm.zeitstempel = Some( zeitstempel );
 
-        pmb_stmt.execute( &[ &pm.id, &zeitstempel, &pm.geplanter_verbrauch, &pm.vorhandene_menge ] ).unwrap();
+        pmb_stmt.execute( &[ &pm.id, &pm.zeitstempel, &pm.geplanter_verbrauch, &pm.vorhandene_menge ] ).unwrap();
     }
 
     pflegemittel_laden( txn );
 }
 
-fn bestellungen_laden( txn: &Transaction, limit: u32 ) {
+fn bestellungen_laden( txn: &Transaction, limit: Option< u32 > ) {
+
+    let limit = limit.unwrap_or( 1 );
 
     let mut b_stmt = txn.prepare( "SELECT b.* FROM bestellungen b ORDER BY b.zeitstempel DESC LIMIT ?" ).unwrap();
 
@@ -203,32 +283,20 @@ fn bestellungen_laden( txn: &Transaction, limit: u32 ) {
 
     let bestellungen = collect_rows( &mut b_stmt, &[ &limit ], | row | {
 
-        let id: i64 = row.get( "id" );
+        let mut bestellung = Bestellung::from_row( row );
 
-        let posten = collect_rows( &mut bp_stmt, &[ &id ], | row | {
+        bestellung.posten = collect_rows( &mut bp_stmt, &[ &bestellung.id ], Posten::from_row );
 
-            Posten{
-                pflegemittel_id: row.get( "pflegemittel_id" ),
-                menge: row.get( "menge" )
-            }
-
-        } );
-
-        Bestellung{
-            id: Some( id ),
-            empfaenger: row.get( "empfaenger" ),
-            nachricht: row.get( "nachricht" ),
-            posten: posten
-        }
+        bestellung
 
     } );
 
     write_to_stdout( &bestellungen );
 }
 
-fn bestellung_speichern( txn: &Transaction, limit: u32 ) {
+fn bestellung_speichern( txn: &Transaction, limit: Option< u32 > ) {
 
-    let mut bestellung: Bestellung = from_reader( stdin() ).unwrap();
+    let mut bestellung: Bestellung = from_reader( stdin() ).die( 400, "Konnte JSON-Darstellung nicht verarbeiten." );
 
     let zeitstempel = get_time().sec;
 
@@ -237,8 +305,9 @@ fn bestellung_speichern( txn: &Transaction, limit: u32 ) {
     let mut bp_stmt = txn.prepare( "INSERT INTO bestellungen_posten VALUES (?, ?, ?)" ).unwrap();
 
     bestellung.id = None;
+    bestellung.zeitstempel = Some( zeitstempel );
 
-    b_stmt.execute( &[ &bestellung.id, &zeitstempel, &bestellung.empfaenger, &bestellung.nachricht ] ).unwrap();
+    b_stmt.execute( &[ &bestellung.id, &bestellung.zeitstempel, &bestellung.empfaenger, &bestellung.nachricht ] ).unwrap();
 
     bestellung.id = Some( txn.last_insert_rowid() );
 
@@ -247,12 +316,100 @@ fn bestellung_speichern( txn: &Transaction, limit: u32 ) {
         bp_stmt.execute( &[ &bestellung.id, &posten.pflegemittel_id, &posten.menge ] ).unwrap();
     }
 
-    // TODO: bestellung_versenden
+    bestellung_versenden( txn, bestellung );
 
     bestellungen_laden( txn, limit );
 }
 
-fn bestand_laden( txn: &Transaction, id: i64 ) {
+fn bestellung_versenden( txn: &Transaction, bestellung: Bestellung ) {
+
+    use std::io::Write;
+
+    let mut config = Ini::load_from_file( "/usr/lib/pflegebedarf/versenden.ini" ).die( 500, "Konnte Konfiguration für Versand nicht verarbeiten." );
+
+    let config = config.general_section_mut();
+
+    let datum = strftime( "%d.%m.%Y", &at( Timespec::new( bestellung.zeitstempel.unwrap(), 0 ) ) ).unwrap();
+    let betreff = config.remove( "betreff" ).unwrap().replace( "{datum}", &datum );
+
+    let von = config.remove( "von" ).unwrap();
+    let antwort = config.remove( "antwort" ).unwrap();
+    let kopien = config.remove( "kopien" ).unwrap();
+
+    if !bestellung.nachricht.contains( "{posten}" ) {
+        die( 400, "Die Nachricht muss den Platzhalter {posten} enthalten." );
+    }
+
+    let posten = posten_formatieren( txn, bestellung.posten );
+    let nachricht = bestellung.nachricht.replace( "{posten}", &posten );
+
+    let mut sendmail = Command::new( "sendmail" ).arg( bestellung.empfaenger ).stdin( Stdio::piped() ).spawn().unwrap();
+
+    {
+        let stdin = sendmail.stdin.as_mut().unwrap();
+
+        write!( stdin, "From: {}", von ).unwrap();
+        write!( stdin, "\r\nReply-To: {}", antwort ).unwrap();
+
+        for kopie in kopien.split( ',' ) {
+            write!( stdin, "\r\nCc: {}", kopie ).unwrap();
+        }
+
+        write!( stdin, "\r\nSubject: {}", betreff ).unwrap();
+
+        write!( stdin, "\r\n\r\n{}", nachricht ).unwrap();
+    }
+
+    if !sendmail.wait().unwrap().success() {
+        die( 500, "Konnte Bestellung nicht versenden." );
+    }
+}
+
+fn posten_formatieren( txn: &Transaction, posten: Vec< Posten > ) -> String {
+
+    use std::fmt::Write;
+
+    let mut stichpunkte = String::new();
+
+    let mut stmt = txn.prepare( r#"
+SELECT pm.*, pmb.zeitstempel, pmb.geplanter_verbrauch, pmb.vorhandene_menge
+FROM pflegemittel pm, pflegemittel_bestand pmb
+WHERE pm.id = ? AND pm.id = pmb.pflegemittel_id
+ORDER BY pmb.zeitstempel DESC LIMIT 1
+        "# ).unwrap();
+
+    let mut anstrich = "*";
+
+    for p in posten.into_iter() {
+
+        if p.menge < 1 {
+            continue;
+        }
+
+        let pm = stmt.query_row( &[ &p.pflegemittel_id ], Pflegemittel::from_row ).unwrap();
+
+        write!( &mut stichpunkte, "{} {} {} {}", &anstrich, p.menge, pm.einheit, pm.bezeichnung ).unwrap();
+
+        let hersteller_und_produkt_gesetzt = !pm.hersteller_und_produkt.is_empty();
+        let pzn_oder_ref_gesetzt = !pm.pzn_oder_ref.is_empty();
+
+        if hersteller_und_produkt_gesetzt && pzn_oder_ref_gesetzt {
+            write!( &mut stichpunkte, " ({} {})", pm.hersteller_und_produkt, pm.pzn_oder_ref ).unwrap();
+        } else if hersteller_und_produkt_gesetzt {
+            write!( &mut stichpunkte, " ({})", pm.hersteller_und_produkt ).unwrap();
+        } else if pzn_oder_ref_gesetzt {
+            write!( &mut stichpunkte, " ({})", pm.pzn_oder_ref ).unwrap();
+        }
+
+        anstrich = "\n\n*";
+    }
+
+    stichpunkte
+}
+
+fn bestand_laden( txn: &Transaction, id: Option< i64 > ) {
+
+    let id = id.die( 400, "Der Parameter id fehlt oder konnte nicht verarbeitet werden." );
 
     let mut stmt = txn.prepare( "SELECT zeitstempel, geplanter_verbrauch, vorhandene_menge FROM pflegemittel_bestand WHERE pflegemittel_id = ? ORDER BY zeitstempel" ).unwrap();
 
@@ -269,7 +426,9 @@ fn bestand_laden( txn: &Transaction, id: i64 ) {
     write_to_stdout( &bestand );
 }
 
-fn menge_laden( txn: &Transaction, id: i64 ) {
+fn menge_laden( txn: &Transaction, id: Option< i64 > ) {
+
+    let id = id.die( 400, "Der Parameter id fehlt oder konnte nicht verarbeitet werden." );
 
     let mut stmt = txn.prepare( r#"
 SELECT b.zeitstempel, bp.menge
@@ -333,7 +492,7 @@ fn main() {
 
     let params = parse_params();
 
-    let mut conn = Connection::open( "/usr/lib/pflegebedarf/datenbank.sqlite" ).unwrap();
+    let mut conn = Connection::open( "/usr/lib/pflegebedarf/datenbank.sqlite" ).die( 500, "Konnte Datenbank nicht öffnen!" );
 
     create_schema( &mut conn );
 
@@ -345,15 +504,15 @@ fn main() {
 
         ( "POST", "/pflegemittel" ) => pflegemittel_speichern( &txn ),
 
-        ( "GET", "/bestellungen" ) => bestellungen_laden( &txn, params.limit.unwrap_or( 1 ) ),
+        ( "GET", "/bestellungen" ) => bestellungen_laden( &txn, params.limit ),
 
-        ( "POST", "/bestellungen" ) => bestellung_speichern( &txn, params.limit.unwrap_or( 1 ) ),
+        ( "POST", "/bestellungen" ) => bestellung_speichern( &txn, params.limit ),
 
-        ( "GET", "/pflegemittel_bestand" ) => bestand_laden( &txn, params.id.unwrap() ),
+        ( "GET", "/pflegemittel_bestand" ) => bestand_laden( &txn, params.id ),
 
-        ( "GET", "/bestellungen_menge" ) => menge_laden( &txn, params.id.unwrap() ),
+        ( "GET", "/bestellungen_menge" ) => menge_laden( &txn, params.id ),
 
-        _ => panic!( "Unsupported method or path!" )
+        _ => die( 404, "Methode oder Pfad werden nicht unterstützt!" )
 
     };
 
