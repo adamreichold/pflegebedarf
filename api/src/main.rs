@@ -343,12 +343,13 @@ fn bestellung_versenden( txn: &Transaction, bestellung: Bestellung ) {
     let posten = posten_formatieren( txn, bestellung.posten );
     let nachricht = bestellung.nachricht.replace( "{posten}", &posten );
 
-    let mut sendmail = Command::new( "sendmail" ).arg( bestellung.empfaenger ).stdin( Stdio::piped() ).spawn().unwrap();
+    let mut sendmail = Command::new( "sendmail" ).arg( "-t" ).stdin( Stdio::piped() ).spawn().unwrap();
 
     {
         let stdin = sendmail.stdin.as_mut().unwrap();
 
-        write!( stdin, "From: {}", von ).unwrap();
+        write!( stdin, "To: {}", bestellung.empfaenger ).unwrap();
+        write!( stdin, "\r\nFrom: {}", von ).unwrap();
         write!( stdin, "\r\nReply-To: {}", antwort ).unwrap();
 
         for kopie in kopien.split( ',' ) {
