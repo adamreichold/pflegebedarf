@@ -7,8 +7,8 @@ use rusqlite::Transaction;
 use ini::Ini;
 
 use super::cgi::{die, Die};
-use super::modell::{Bestellung, Posten};
 use super::datenbank::posten_laden;
+use super::modell::{Bestellung, Posten};
 
 pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) {
     use std::io::Write;
@@ -64,6 +64,9 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) {
     if !sendmail.wait().unwrap().success() {
         die(500, "Konnte Bestellung nicht versenden.");
     }
+
+    txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", &[])
+        .unwrap();
 }
 
 fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> String {

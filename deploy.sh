@@ -1,5 +1,7 @@
 #!/bin/bash -xe
 
+TARGET=$1
+
 pushd api; cargo build --release --target=mips-unknown-linux-musl; popd
 strip ./api/target/mips-unknown-linux-musl/release/api
 

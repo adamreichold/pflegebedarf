@@ -1,7 +1,7 @@
 use std::io::{stdin, stdout, Write};
 
-use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 use serde_json::{from_reader, to_writer};
 
 pub fn write_to_stdout<T: Serialize>(value: &T) {

@@ -3,6 +3,7 @@ module Api exposing (Pflegemittel, BestellungPosten, Bestellung, PflegemittelBes
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Json.Decode.Extra exposing ((|:))
 import Date exposing (Date, fromTime)
 import Time exposing (second)
 
@@ -16,6 +17,7 @@ type alias Pflegemittel =
     , geplanterVerbrauch : Int
     , vorhandeneMenge : Int
     , wirdVerwendet : Bool
+    , wurdeGezaehlt : Bool
     }
 
 
@@ -65,15 +67,16 @@ encodeId id =
 
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
-    Decode.map8 Pflegemittel
-        (Decode.field "id" Decode.int)
-        (Decode.field "bezeichnung" Decode.string)
-        (Decode.field "einheit" Decode.string)
-        (Decode.field "hersteller_und_produkt" Decode.string)
-        (Decode.field "pzn_oder_ref" Decode.string)
-        (Decode.field "geplanter_verbrauch" Decode.int)
-        (Decode.field "vorhandene_menge" Decode.int)
-        (Decode.field "wird_verwendet" Decode.bool)
+    Decode.succeed Pflegemittel
+        |: (Decode.field "id" Decode.int)
+        |: (Decode.field "bezeichnung" Decode.string)
+        |: (Decode.field "einheit" Decode.string)
+        |: (Decode.field "hersteller_und_produkt" Decode.string)
+        |: (Decode.field "pzn_oder_ref" Decode.string)
+        |: (Decode.field "geplanter_verbrauch" Decode.int)
+        |: (Decode.field "vorhandene_menge" Decode.int)
+        |: (Decode.field "wird_verwendet" Decode.bool)
+        |: (Decode.field "wurde_gezaehlt" Decode.bool)
 
 
 encodePflegemittel : Pflegemittel -> Encode.Value
@@ -87,6 +90,7 @@ encodePflegemittel pflegemittel =
         , ( "geplanter_verbrauch", Encode.int pflegemittel.geplanterVerbrauch )
         , ( "vorhandene_menge", Encode.int pflegemittel.vorhandeneMenge )
         , ( "wird_verwendet", Encode.bool pflegemittel.wirdVerwendet )
+        , ( "wurde_gezaehlt", Encode.bool pflegemittel.wurdeGezaehlt )
         ]
 
 

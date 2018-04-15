@@ -35,6 +35,7 @@ type Msg
     | GeplanterVerbrauchAendern Int String
     | VorhandeneMengeAendern Int String
     | WirdVerwendetAendern Int Bool
+    | WurdeGezaehltAendern Int Bool
     | PflegemittelSpeichern
     | PflegemittelGespeichert (Result String (List Pflegemittel))
 
@@ -56,7 +57,7 @@ pflegemittelAuswerten : Model -> List Pflegemittel -> Model
 pflegemittelAuswerten model pflegemittel =
     let
         mitNeuemPflegemittel =
-            pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 0 True ]
+            pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 0 True False ]
     in
         { model
             | pflegemittel = mitNeuemPflegemittel
@@ -139,6 +140,9 @@ update msg model =
         WirdVerwendetAendern id wirdVerwendet ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wirdVerwendet = wirdVerwendet } }, Cmd.none )
 
+        WurdeGezaehltAendern id wurdeGezaehlt ->
+            ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wurdeGezaehlt = wurdeGezaehlt } }, Cmd.none )
+
         PflegemittelSpeichern ->
             ( { model | wirdGespeichert = True, meldung = "Wird gespeichert...", letzterFehler = "" }, pflegemittelSpeichern PflegemittelGespeichert <| geaendertePflegemittel model )
 
@@ -169,7 +173,7 @@ pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Dict Int String ->
 pflegemittelTabelle pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
     let
         ueberschriften =
-            [ "Bezeichnung", "Einheit", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet" ]
+            [ "Bezeichnung", "Einheit", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
 
         zeile =
             \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen
@@ -197,4 +201,5 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
         , zahlenfeld "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
         , zahlenfeld "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
         , ankreuzfeld pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
+        , ankreuzfeld pflegemittel.wurdeGezaehlt <| WurdeGezaehltAendern pflegemittel.id
         ]

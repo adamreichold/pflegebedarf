@@ -1,7 +1,7 @@
-use rusqlite::{Connection, Row, Statement, Transaction};
 use rusqlite::types::ToSql;
+use rusqlite::{Connection, Row, Statement, Transaction};
 
-use super::cgi::{die, Die};
+use super::cgi::Die;
 use super::modell::{Bestand, Bestellung, Menge, Pflegemittel, Posten};
 
 trait FromRow {
@@ -20,6 +20,7 @@ impl FromRow for Pflegemittel {
             geplanter_verbrauch: row.get("geplanter_verbrauch"),
             vorhandene_menge: row.get("vorhandene_menge"),
             wird_verwendet: row.get("wird_verwendet"),
+            wurde_gezaehlt: row.get("wurde_gezaehlt"),
         }
     }
 }
@@ -75,12 +76,11 @@ pub fn create_schema(conn: &mut Connection) {
     let user_version: u32 = conn.query_row("PRAGMA user_version", &[], |row| row.get(0))
         .unwrap();
 
-    match user_version {
-        0 => {
-            let txn = conn.transaction().unwrap();
+    if user_version < 6 {
+        let txn = conn.transaction().unwrap();
 
-            txn.execute_batch(
-                r#"
+        txn.execute_batch(
+            r#"
 CREATE TABLE pflegemittel (
     id INTEGER PRIMARY KEY,
     bezeichnung TEXT NOT NULL,
@@ -116,20 +116,25 @@ CREATE TABLE bestellungen_posten (
 );
 
 PRAGMA user_version = 6;
-                "#,
-            ).unwrap();
+            "#,
+        ).unwrap();
 
-            txn.commit().unwrap();
-        }
+        txn.commit().unwrap();
+    }
 
-        6 => {
-            return;
-        }
+    if user_version < 7 {
+        let txn = conn.transaction().unwrap();
 
-        _ => {
-            die(500, "Unbekannte Version der Datenbank!");
-        }
-    };
+        txn.execute_batch(
+            r#"
+ALTER TABLE pflegemittel ADD COLUMN wurde_gezaehlt INTEGER NOT NULL DEFAULT 0;
+
+PRAGMA user_version = 7;
+            "#,
+        ).unwrap();
+
+        txn.commit().unwrap();
+    }
 }
 
 pub fn pflegemittel_laden(txn: &Transaction) -> Vec<Pflegemittel> {
@@ -154,8 +159,9 @@ pub fn pflegemittel_speichern(
     pflegemittel: Vec<Pflegemittel>,
     zeitstempel: i64,
 ) {
-    let mut pm_stmt = txn.prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?)")
-        .unwrap();
+    let mut pm_stmt = txn.prepare(
+        "INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).unwrap();
 
     let mut pmb_stmt = txn.prepare("INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)")
         .unwrap();
@@ -169,6 +175,7 @@ pub fn pflegemittel_speichern(
                 &pm.hersteller_und_produkt,
                 &pm.pzn_oder_ref,
                 &pm.wird_verwendet,
+                &pm.wurde_gezaehlt,
             ])
             .unwrap();
 

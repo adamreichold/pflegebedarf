@@ -9,6 +9,7 @@ pub struct Pflegemittel {
     pub geplanter_verbrauch: u32,
     pub vorhandene_menge: u32,
     pub wird_verwendet: bool,
+    pub wurde_gezaehlt: bool,
 }
 
 #[derive(Serialize, Deserialize)]
