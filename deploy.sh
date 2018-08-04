@@ -2,8 +2,8 @@
 
 TARGET=$1
 
-pushd api; cargo build --release --target=mips-unknown-linux-musl; popd
-strip ./api/target/mips-unknown-linux-musl/release/api
+pushd api; TARGET_CC=mips-openwrt-linux-gcc cargo build --release --target=mips-unknown-linux-musl; popd
+mips-openwrt-linux-strip ./api/target/mips-unknown-linux-musl/release/api
 
 ./ui/build.sh
 ./ui/minify.sh
