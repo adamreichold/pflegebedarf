@@ -1,6 +1,6 @@
 module Ui exposing (p, fehlermeldung, formular, tabelle, textfeld, textbereich, zahlenfeld, emailfeld, ankreuzfeld, auswahlfeld)
 
-import Html exposing (Html, Attribute, form, tbody, tr, th, text, textarea, select, option)
+import Html exposing (Html, Attribute, form, tbody, tr, text, textarea, select, option)
 import Html.Attributes exposing (property, attribute, type_, placeholder, value, checked, disabled, rows, style)
 import Html.Events exposing (onSubmit, onInput, onCheck)
 import Json.Encode
@@ -43,6 +43,14 @@ stickyTop =
     [ ( "position", "sticky" ), ( "top", "0" ) ]
 
 
+lightGrayBackground =
+    [ ( "background-color", "lightgray" ) ]
+
+
+darkGrayBackground =
+    [ ( "background-color", "darkgray" ) ]
+
+
 p attributes children =
     let
         style_ =
@@ -65,6 +73,14 @@ thead attributes children =
             style stickyTop
     in
         Html.thead (style_ :: attributes) children
+
+
+th attributes children =
+    let
+        style_ =
+            style <| largePadding ++ darkGrayBackground
+    in
+        Html.th (style_ :: attributes) children
 
 
 td attributes children =
@@ -91,7 +107,7 @@ fehlermeldung fehler =
 formular : msg -> String -> Bool -> List (Html msg) -> String -> String -> Html msg
 formular absendenMsg absendenValue absendenEnabled inhalt meldung letzterFehler =
     form
-        [ onSubmit absendenMsg, style largePadding ]
+        [ onSubmit absendenMsg, style <| largePadding ++ lightGrayBackground ]
     <|
         inhalt
             ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled, style quarterWidth ] [] ]
