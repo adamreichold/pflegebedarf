@@ -20,8 +20,10 @@ use rusqlite::{Connection, Transaction};
 
 use cgi::{die, read_from_stdin, write_to_stdout, Die};
 
-use datenbank::{bestand_laden, bestellung_speichern, bestellungen_laden, create_schema,
-                menge_laden, pflegemittel_laden, pflegemittel_speichern};
+use datenbank::{
+    bestand_laden, bestellung_speichern, bestellungen_laden, create_schema, menge_laden,
+    pflegemittel_laden, pflegemittel_speichern,
+};
 
 use versenden::bestellung_versenden;
 

@@ -73,7 +73,8 @@ fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&ToSql]) -> Vec<T> {
 }
 
 pub fn create_schema(conn: &mut Connection) {
-    let user_version: u32 = conn.query_row("PRAGMA user_version", &[], |row| row.get(0))
+    let user_version: u32 = conn
+        .query_row("PRAGMA user_version", &[], |row| row.get(0))
         .unwrap();
 
     if user_version < 6 {
@@ -138,8 +139,9 @@ PRAGMA user_version = 7;
 }
 
 pub fn pflegemittel_laden(txn: &Transaction) -> Vec<Pflegemittel> {
-    let mut stmt = txn.prepare(
-        r#"
+    let mut stmt = txn
+        .prepare(
+            r#"
 WITH groesste_zeitstempel AS (
     SELECT pflegemittel_id, MAX(zeitstempel) AS zeitstempel
     FROM pflegemittel_bestand GROUP BY pflegemittel_id
@@ -149,7 +151,7 @@ FROM pflegemittel pm, pflegemittel_bestand pmb, groesste_zeitstempel gzs
 WHERE pm.id = pmb.pflegemittel_id
 AND pmb.pflegemittel_id = gzs.pflegemittel_id AND pmb.zeitstempel = gzs.zeitstempel
         "#,
-    ).unwrap();
+        ).unwrap();
 
     collect_rows(&mut stmt, &[])
 }
@@ -159,11 +161,12 @@ pub fn pflegemittel_speichern(
     pflegemittel: Vec<Pflegemittel>,
     zeitstempel: i64,
 ) {
-    let mut pm_stmt = txn.prepare(
-        "INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).unwrap();
+    let mut pm_stmt = txn
+        .prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .unwrap();
 
-    let mut pmb_stmt = txn.prepare("INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)")
+    let mut pmb_stmt = txn
+        .prepare("INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)")
         .unwrap();
 
     for mut pm in pflegemittel {
@@ -176,8 +179,7 @@ pub fn pflegemittel_speichern(
                 &pm.pzn_oder_ref,
                 &pm.wird_verwendet,
                 &pm.wurde_gezaehlt,
-            ])
-            .unwrap();
+            ]).unwrap();
 
         pm.id = Some(txn.last_insert_rowid());
         pm.zeitstempel = Some(zeitstempel);
@@ -188,17 +190,16 @@ pub fn pflegemittel_speichern(
                 &pm.zeitstempel,
                 &pm.geplanter_verbrauch,
                 &pm.vorhandene_menge,
-            ])
-            .unwrap();
+            ]).unwrap();
     }
 }
 
 pub fn bestellungen_laden(txn: &Transaction, limit: Option<u32>) -> Vec<Bestellung> {
     let limit = limit.unwrap_or(1);
 
-    let mut b_stmt = txn.prepare(
-        "SELECT b.* FROM bestellungen b ORDER BY b.zeitstempel DESC LIMIT ?",
-    ).unwrap();
+    let mut b_stmt = txn
+        .prepare("SELECT b.* FROM bestellungen b ORDER BY b.zeitstempel DESC LIMIT ?")
+        .unwrap();
 
     let mut bp_stmt = txn.prepare("SELECT bp.pflegemittel_id, bp.menge FROM bestellungen_posten bp WHERE bp.bestellung_id = ?").unwrap();
 
@@ -216,10 +217,12 @@ pub fn bestellung_speichern(
     mut bestellung: Bestellung,
     zeitstempel: i64,
 ) -> Bestellung {
-    let mut b_stmt = txn.prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?)")
+    let mut b_stmt = txn
+        .prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?)")
         .unwrap();
 
-    let mut bp_stmt = txn.prepare("INSERT INTO bestellungen_posten VALUES (?, ?, ?)")
+    let mut bp_stmt = txn
+        .prepare("INSERT INTO bestellungen_posten VALUES (?, ?, ?)")
         .unwrap();
 
     bestellung.id = None;
@@ -231,8 +234,7 @@ pub fn bestellung_speichern(
             &bestellung.zeitstempel,
             &bestellung.empfaenger,
             &bestellung.nachricht,
-        ])
-        .unwrap();
+        ]).unwrap();
 
     bestellung.id = Some(txn.last_insert_rowid());
 
@@ -246,24 +248,25 @@ pub fn bestellung_speichern(
 }
 
 pub fn posten_laden(txn: &Transaction, posten: Vec<Posten>) -> Vec<(Posten, Pflegemittel)> {
-    let mut stmt = txn.prepare(
-        r#"
+    let mut stmt = txn
+        .prepare(
+            r#"
 SELECT pm.*, pmb.zeitstempel, pmb.geplanter_verbrauch, pmb.vorhandene_menge
 FROM pflegemittel pm, pflegemittel_bestand pmb
 WHERE pm.id = ? AND pm.id = pmb.pflegemittel_id
 ORDER BY pmb.zeitstempel DESC LIMIT 1
         "#,
-    ).unwrap();
+        ).unwrap();
 
     posten
         .into_iter()
         .map(|p| {
-            let pm = stmt.query_row(&[&p.pflegemittel_id], Pflegemittel::from_row)
+            let pm = stmt
+                .query_row(&[&p.pflegemittel_id], Pflegemittel::from_row)
                 .unwrap();
 
             (p, pm)
-        })
-        .collect()
+        }).collect()
 }
 
 pub fn bestand_laden(txn: &Transaction, id: Option<i64>) -> Vec<Bestand> {
@@ -283,14 +286,15 @@ pub fn menge_laden(txn: &Transaction, id: Option<i64>) -> Vec<Menge> {
         "Der Parameter id fehlt oder konnte nicht verarbeitet werden.",
     );
 
-    let mut stmt = txn.prepare(
-        r#"
+    let mut stmt = txn
+        .prepare(
+            r#"
 SELECT b.zeitstempel, bp.menge
 FROM bestellungen b, bestellungen_posten bp
 WHERE bp.bestellung_id = b.id AND bp.pflegemittel_id = ?
 ORDER BY b.zeitstempel
         "#,
-    ).unwrap();
+        ).unwrap();
 
     collect_rows(&mut stmt, &[&id])
 }
