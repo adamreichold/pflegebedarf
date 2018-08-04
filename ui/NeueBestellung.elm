@@ -2,7 +2,7 @@ module NeueBestellung exposing (main)
 
 import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLaden, bestellungenLaden, neueBestellungSpeichern)
 import Ui exposing (p, formular, tabelle, textbereich, zahlenfeld, emailfeld)
-import Html exposing (Html, text)
+import Html exposing (Html, Attribute, text)
 import Dict exposing (Dict)
 
 
@@ -216,7 +216,7 @@ neueBestellungTabelle pflegemittel bestellungen letzteBestellung neueBestellung 
         tabelle ueberschriften <| List.map zeile pflegemittel
 
 
-neueBestellungZeile : Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> List (Html Msg)
+neueBestellungZeile : Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> ( List (Attribute Msg), List (Html Msg) )
 neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
     let
         mittlere =
@@ -230,11 +230,13 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
                 (toString <| menge pflegemittel.id neueBestellung)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
-        [ text pflegemittel.bezeichnung
-        , text pflegemittel.einheit
-        , text <| toString pflegemittel.geplanterVerbrauch
-        , text <| toString pflegemittel.vorhandeneMenge
-        , text mittlere
-        , text letzte
-        , zahlenfeld "0" neue <| MengeAendern pflegemittel.id
-        ]
+        ( []
+        , [ text pflegemittel.bezeichnung
+          , text pflegemittel.einheit
+          , text <| toString pflegemittel.geplanterVerbrauch
+          , text <| toString pflegemittel.vorhandeneMenge
+          , text mittlere
+          , text letzte
+          , zahlenfeld "0" neue <| MengeAendern pflegemittel.id
+          ]
+        )

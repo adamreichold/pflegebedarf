@@ -1,4 +1,4 @@
-module Ui exposing (p, fehlermeldung, formular, tabelle, textfeld, textbereich, zahlenfeld, emailfeld, ankreuzfeld, auswahlfeld)
+module Ui exposing (versteckt, zentrierteElemente, p, fehlermeldung, formular, tabelle, textfeld, textbereich, zahlenfeld, emailfeld, ankreuzfeld, auswahlfeld, optionsfeld)
 
 import Html exposing (Html, Attribute, form, tbody, tr, text, textarea, select, option)
 import Html.Attributes exposing (property, attribute, type_, placeholder, value, checked, disabled, rows, style)
@@ -49,6 +49,26 @@ lightGrayBackground =
 
 darkGrayBackground =
     [ ( "background-color", "darkgray" ) ]
+
+
+displayNone =
+    [ ( "display", "none" ) ]
+
+
+displayFlex =
+    [ ( "display", "flex" ) ]
+
+
+alignItemsCenter =
+    [ ( "align-items", "center" ) ]
+
+
+versteckt =
+    style displayNone
+
+
+zentrierteElemente =
+    style <| displayFlex ++ alignItemsCenter
 
 
 p attributes children =
@@ -121,12 +141,12 @@ tabelleKopfzeile ueberschriften =
     tr [] <| List.map (\ueberschrift -> th [] [ text ueberschrift ]) ueberschriften
 
 
-tabelleZeile : List (Html msg) -> Html msg
-tabelleZeile spalten =
-    tr [] <| List.map (\spalte -> td [] [ spalte ]) spalten
+tabelleZeile : ( List (Attribute msg), List (Html msg) ) -> Html msg
+tabelleZeile ( attribute, spalten ) =
+    tr attribute <| List.map (\spalte -> td [] [ spalte ]) spalten
 
 
-tabelle : List String -> List (List (Html msg)) -> Html msg
+tabelle : List String -> List ( List (Attribute msg), List (Html msg) ) -> Html msg
 tabelle ueberschriften zeilen =
     table []
         [ thead [] [ tabelleKopfzeile ueberschriften ]
@@ -169,3 +189,8 @@ auswahlfeld options onInput_ =
             \( value_, text_ ) -> option [ attribute "value" value_ ] [ text text_ ]
     in
         select [ onInput onInput_, style_ ] <| List.map optionItem options
+
+
+optionsfeld : String -> Bool -> (Bool -> msg) -> List (Html msg)
+optionsfeld text_ checked_ onCheck_ =
+    [ input [ type_ "checkbox", checked checked_, onCheck onCheck_, style <| largeWidth ] [], text text_ ]

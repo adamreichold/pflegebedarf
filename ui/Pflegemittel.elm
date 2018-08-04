@@ -1,8 +1,8 @@
 module Pflegemittel exposing (main)
 
 import Api exposing (Pflegemittel, pflegemittelLaden, pflegemittelSpeichern)
-import Ui exposing (formular, tabelle, textfeld, zahlenfeld, ankreuzfeld)
-import Html exposing (Html)
+import Ui exposing (versteckt, zentrierteElemente, p, formular, tabelle, textfeld, zahlenfeld, ankreuzfeld, optionsfeld)
+import Html exposing (Html, Attribute)
 import Dict exposing (Dict)
 
 
@@ -21,6 +21,8 @@ type alias Model =
     , ungueltigeVerbraeuche : Dict Int String
     , ungueltigeMengen : Dict Int String
     , wirdGespeichert : Bool
+    , nurVerwendeteZeigen : Bool
+    , nurUngezaehlteZeigen : Bool
     , meldung : String
     , letzterFehler : String
     }
@@ -36,6 +38,8 @@ type Msg
     | VorhandeneMengeAendern Int String
     | WirdVerwendetAendern Int Bool
     | WurdeGezaehltAendern Int Bool
+    | NurVerwendeteZeigenAendern Bool
+    | NurUngezaehlteZeigenAendern Bool
     | PflegemittelSpeichern
     | PflegemittelGespeichert (Result String (List Pflegemittel))
 
@@ -105,7 +109,7 @@ geaendertePflegemittel model =
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model [] [] Dict.empty Dict.empty False "" ""
+    ( Model [] [] Dict.empty Dict.empty False True False "" ""
     , pflegemittelLaden PflegemittelLaden
     )
 
@@ -143,6 +147,12 @@ update msg model =
         WurdeGezaehltAendern id wurdeGezaehlt ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | wurdeGezaehlt = wurdeGezaehlt } }, Cmd.none )
 
+        NurVerwendeteZeigenAendern nurVerwendeteZeigen ->
+            ( { model | nurVerwendeteZeigen = nurVerwendeteZeigen }, Cmd.none )
+
+        NurUngezaehlteZeigenAendern nurUngezaehlteZeigen ->
+            ( { model | nurUngezaehlteZeigen = nurUngezaehlteZeigen }, Cmd.none )
+
         PflegemittelSpeichern ->
             ( { model | wirdGespeichert = True, meldung = "Wird gespeichert...", letzterFehler = "" }, pflegemittelSpeichern PflegemittelGespeichert <| geaendertePflegemittel model )
 
@@ -164,25 +174,33 @@ view model =
             not model.wirdGespeichert && Dict.isEmpty model.ungueltigeVerbraeuche && Dict.isEmpty model.ungueltigeMengen
 
         inhalt =
-            [ pflegemittelTabelle model.pflegemittel model.ungueltigeVerbraeuche model.ungueltigeMengen ]
+            [ pflegemittelTabelle model.pflegemittel model.ungueltigeVerbraeuche model.ungueltigeMengen model.nurVerwendeteZeigen model.nurUngezaehlteZeigen
+            , p [ zentrierteElemente ] <|
+                []
+                    ++ optionsfeld "Nur verwendete zeigen" model.nurVerwendeteZeigen NurVerwendeteZeigenAendern
+                    ++ optionsfeld "Nur ungezählte anzeigen" model.nurUngezaehlteZeigen NurUngezaehlteZeigenAendern
+            ]
     in
         formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
-pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Dict Int String -> Html Msg
-pflegemittelTabelle pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
+pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Dict Int String -> Bool -> Bool -> Html Msg
+pflegemittelTabelle pflegemittel ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen =
     let
         ueberschriften =
             [ "Bezeichnung", "Einheit", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
 
+        filter =
+            \pflegemittel -> pflegemittel.id == 0 || ((not nurVerwendeteZeigen || pflegemittel.wirdVerwendet) && (not nurUngezaehlteZeigen || not pflegemittel.wurdeGezaehlt))
+
         zeile =
-            \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen
+            \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter
     in
         tabelle ueberschriften <| List.map zeile pflegemittel
 
 
-pflegemittelZeile : Pflegemittel -> Dict Int String -> Dict Int String -> List (Html Msg)
-pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
+pflegemittelZeile : Pflegemittel -> Dict Int String -> Dict Int String -> (Pflegemittel -> Bool) -> ( List (Attribute Msg), List (Html Msg) )
+pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter =
     let
         geplanterVerbrauch =
             Maybe.withDefault
@@ -193,13 +211,21 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen =
             Maybe.withDefault
                 (toString <| pflegemittel.vorhandeneMenge)
                 (Dict.get pflegemittel.id ungueltigeMengen)
+
+        gefiltert =
+            if filter pflegemittel then
+                []
+            else
+                [ versteckt ]
     in
-        [ textfeld pflegemittel.bezeichnung <| BezeichnungAendern pflegemittel.id
-        , textfeld pflegemittel.einheit <| EinheitAendern pflegemittel.id
-        , textfeld pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
-        , textfeld pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
-        , zahlenfeld "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
-        , zahlenfeld "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
-        , ankreuzfeld pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
-        , ankreuzfeld pflegemittel.wurdeGezaehlt <| WurdeGezaehltAendern pflegemittel.id
-        ]
+        ( gefiltert
+        , [ textfeld pflegemittel.bezeichnung <| BezeichnungAendern pflegemittel.id
+          , textfeld pflegemittel.einheit <| EinheitAendern pflegemittel.id
+          , textfeld pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
+          , textfeld pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
+          , zahlenfeld "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
+          , zahlenfeld "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
+          , ankreuzfeld pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
+          , ankreuzfeld pflegemittel.wurdeGezaehlt <| WurdeGezaehltAendern pflegemittel.id
+          ]
+        )
