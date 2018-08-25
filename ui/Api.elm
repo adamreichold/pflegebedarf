@@ -1,10 +1,10 @@
-module Api exposing (Pflegemittel, BestellungPosten, Bestellung, PflegemittelBestand, BestellungMenge, pflegemittelLaden, pflegemittelSpeichern, bestellungenLaden, neueBestellungSpeichern, pflegemittelBestandLaden, bestellungenMengeLaden)
+module Api exposing (Bestellung, BestellungMenge, BestellungPosten, Pflegemittel, PflegemittelBestand, bestellungenLaden, bestellungenMengeLaden, neueBestellungSpeichern, pflegemittelBestandLaden, pflegemittelLaden, pflegemittelSpeichern)
 
+import Date exposing (Date, fromTime)
 import Http
 import Json.Decode as Decode
-import Json.Encode as Encode
 import Json.Decode.Extra exposing ((|:))
-import Date exposing (Date, fromTime)
+import Json.Encode as Encode
 import Time exposing (second)
 
 
@@ -54,13 +54,14 @@ decodeZeitstempel =
         toDate =
             fromTime << (*) second << toFloat
     in
-        Decode.map toDate Decode.int
+    Decode.map toDate Decode.int
 
 
 encodeId : Int -> Encode.Value
 encodeId id =
     if id /= 0 then
         Encode.int id
+
     else
         Encode.null
 
@@ -68,15 +69,15 @@ encodeId id =
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
     Decode.succeed Pflegemittel
-        |: (Decode.field "id" Decode.int)
-        |: (Decode.field "bezeichnung" Decode.string)
-        |: (Decode.field "einheit" Decode.string)
-        |: (Decode.field "hersteller_und_produkt" Decode.string)
-        |: (Decode.field "pzn_oder_ref" Decode.string)
-        |: (Decode.field "geplanter_verbrauch" Decode.int)
-        |: (Decode.field "vorhandene_menge" Decode.int)
-        |: (Decode.field "wird_verwendet" Decode.bool)
-        |: (Decode.field "wurde_gezaehlt" Decode.bool)
+        |: Decode.field "id" Decode.int
+        |: Decode.field "bezeichnung" Decode.string
+        |: Decode.field "einheit" Decode.string
+        |: Decode.field "hersteller_und_produkt" Decode.string
+        |: Decode.field "pzn_oder_ref" Decode.string
+        |: Decode.field "geplanter_verbrauch" Decode.int
+        |: Decode.field "vorhandene_menge" Decode.int
+        |: Decode.field "wird_verwendet" Decode.bool
+        |: Decode.field "wurde_gezaehlt" Decode.bool
 
 
 encodePflegemittel : Pflegemittel -> Encode.Value
@@ -154,7 +155,7 @@ fehlerBehandeln result =
                 _ =
                     Debug.log "Err" err
             in
-                Err response.body
+            Err response.body
 
         Err err ->
             Err <| toString err
@@ -171,7 +172,7 @@ objektSpeichern msg url decoder encoder objekt =
         body =
             Http.jsonBody <| encoder objekt
     in
-        Http.send (msg << fehlerBehandeln) (Http.post url body decoder)
+    Http.send (msg << fehlerBehandeln) (Http.post url body decoder)
 
 
 pflegemittelLaden : (Result String (List Pflegemittel) -> msg) -> Cmd msg
@@ -183,7 +184,7 @@ pflegemittelLaden msg =
         decoder =
             Decode.list decodePflegemittel
     in
-        objektLaden msg url decoder
+    objektLaden msg url decoder
 
 
 pflegemittelSpeichern : (Result String (List Pflegemittel) -> msg) -> List Pflegemittel -> Cmd msg
@@ -198,7 +199,7 @@ pflegemittelSpeichern msg pflegemittel =
         encoder =
             Encode.list << List.map encodePflegemittel
     in
-        objektSpeichern msg url decoder encoder pflegemittel
+    objektSpeichern msg url decoder encoder pflegemittel
 
 
 bestellungenLaden : (Result String (List Bestellung) -> msg) -> Cmd msg
@@ -210,7 +211,7 @@ bestellungenLaden msg =
         decoder =
             Decode.list decodeBestellung
     in
-        objektLaden msg url decoder
+    objektLaden msg url decoder
 
 
 neueBestellungSpeichern : (Result String (List Bestellung) -> msg) -> Bestellung -> Cmd msg
@@ -225,7 +226,7 @@ neueBestellungSpeichern msg bestellung =
         encoder =
             encodeBestellung
     in
-        objektSpeichern msg url decoder encoder bestellung
+    objektSpeichern msg url decoder encoder bestellung
 
 
 pflegemittelBestandLaden : Int -> (Result String (List PflegemittelBestand) -> msg) -> Cmd msg
@@ -237,7 +238,7 @@ pflegemittelBestandLaden id msg =
         decoder =
             Decode.list decodePflegemittelBestand
     in
-        objektLaden msg url decoder
+    objektLaden msg url decoder
 
 
 bestellungenMengeLaden : Int -> (Result String (List BestellungMenge) -> msg) -> Cmd msg
@@ -249,4 +250,4 @@ bestellungenMengeLaden id msg =
         decoder =
             Decode.list decodeBestellungMenge
     in
-        objektLaden msg url decoder
+    objektLaden msg url decoder

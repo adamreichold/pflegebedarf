@@ -1,9 +1,9 @@
 module NeueBestellung exposing (main)
 
-import Api exposing (Pflegemittel, BestellungPosten, Bestellung, pflegemittelLaden, bestellungenLaden, neueBestellungSpeichern)
-import Ui exposing (p, formular, tabelle, textbereich, zahlenfeld, emailfeld)
-import Html exposing (Html, Attribute, text)
+import Api exposing (Bestellung, BestellungPosten, Pflegemittel, bestellungenLaden, neueBestellungSpeichern, pflegemittelLaden)
 import Dict exposing (Dict)
+import Html exposing (Attribute, Html, text)
+import Ui exposing (emailfeld, formular, p, tabelle, textbereich, zahlenfeld)
 
 
 main =
@@ -41,6 +41,7 @@ mittelwert : List Int -> Maybe Float
 mittelwert werte =
     if List.isEmpty werte then
         Nothing
+
     else
         Just <| (toFloat <| List.sum werte) / (toFloat <| List.length werte)
 
@@ -54,7 +55,7 @@ menge pflegemittelId bestellung =
         filter =
             List.head << List.filter predicate << .posten
     in
-        Maybe.withDefault 0 <| Maybe.map .menge <| filter bestellung
+    Maybe.withDefault 0 <| Maybe.map .menge <| filter bestellung
 
 
 mengeAendern : Int -> Int -> Bestellung -> Bestellung
@@ -64,10 +65,11 @@ mengeAendern pflegemittelId menge bestellung =
             \posten ->
                 if posten.pflegemittelId == pflegemittelId then
                     { posten | menge = menge }
+
                 else
                     posten
     in
-        { bestellung | posten = List.map aenderung bestellung.posten }
+    { bestellung | posten = List.map aenderung bestellung.posten }
 
 
 mittlereMenge : Int -> List Bestellung -> Int
@@ -76,7 +78,7 @@ mittlereMenge pflegemittelId bestellungen =
         mengen =
             List.map (menge pflegemittelId) bestellungen
     in
-        Maybe.withDefault 0 <| Maybe.map ceiling <| mittelwert mengen
+    Maybe.withDefault 0 <| Maybe.map ceiling <| mittelwert mengen
 
 
 letzteMenge : Int -> Maybe Bestellung -> Int
@@ -99,7 +101,7 @@ neueBestellungAnlegen pflegemittel letzteBestellung =
         posten =
             List.map neuerPosten <| List.map .id pflegemittel
     in
-        Bestellung 0 empfaenger nachricht posten
+    Bestellung 0 empfaenger nachricht posten
 
 
 bestellungenAuswerten : Model -> List Bestellung -> Model
@@ -108,11 +110,11 @@ bestellungenAuswerten model bestellungen =
         letzteBestellung =
             List.head bestellungen
     in
-        { model
-            | bestellungen = bestellungen
-            , letzteBestellung = letzteBestellung
-            , neueBestellung = neueBestellungAnlegen model.pflegemittel letzteBestellung
-        }
+    { model
+        | bestellungen = bestellungen
+        , letzteBestellung = letzteBestellung
+        , neueBestellung = neueBestellungAnlegen model.pflegemittel letzteBestellung
+    }
 
 
 neueBestellungAendern : Model -> (Bestellung -> Bestellung) -> Model
@@ -128,7 +130,7 @@ neueBestellungMengeAendern model pflegemittelId menge =
                 neueBestellung =
                     mengeAendern pflegemittelId menge model.neueBestellung
             in
-                { model | neueBestellung = neueBestellung, ungueltigeMengen = Dict.remove pflegemittelId model.ungueltigeMengen }
+            { model | neueBestellung = neueBestellung, ungueltigeMengen = Dict.remove pflegemittelId model.ungueltigeMengen }
 
         Err _ ->
             { model | ungueltigeMengen = Dict.insert pflegemittelId menge model.ungueltigeMengen }
@@ -141,7 +143,7 @@ ohneLeerePosten bestellung =
             \posten ->
                 posten.menge > 0
     in
-        { bestellung | posten = List.filter nichtLeer bestellung.posten }
+    { bestellung | posten = List.filter nichtLeer bestellung.posten }
 
 
 init : ( Model, Cmd Msg )
@@ -183,7 +185,7 @@ update msg model =
                 newModel =
                     bestellungenAuswerten model bestellungen
             in
-                ( { newModel | wirdVersendet = False, meldung = "Wurde versandt." }, Cmd.none )
+            ( { newModel | wirdVersendet = False, meldung = "Wurde versandt." }, Cmd.none )
 
         NeueBestellungVersandt (Err err) ->
             ( { model | wirdVersendet = False, letzterFehler = err }, Cmd.none )
@@ -201,7 +203,7 @@ view model =
             , p [] [ textbereich "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
             ]
     in
-        formular NeueBestellungVersenden "Versenden" absendenEnabled inhalt model.meldung model.letzterFehler
+    formular NeueBestellungVersenden "Versenden" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
 neueBestellungTabelle : List Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> Html Msg
@@ -213,7 +215,7 @@ neueBestellungTabelle pflegemittel bestellungen letzteBestellung neueBestellung 
         zeile =
             \pflegemittel -> neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen
     in
-        tabelle ueberschriften <| List.map zeile pflegemittel
+    tabelle ueberschriften <| List.map zeile pflegemittel
 
 
 neueBestellungZeile : Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> ( List (Attribute Msg), List (Html Msg) )
@@ -230,13 +232,13 @@ neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung un
                 (toString <| menge pflegemittel.id neueBestellung)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
-        ( []
-        , [ text pflegemittel.bezeichnung
-          , text pflegemittel.einheit
-          , text <| toString pflegemittel.geplanterVerbrauch
-          , text <| toString pflegemittel.vorhandeneMenge
-          , text mittlere
-          , text letzte
-          , zahlenfeld "0" neue <| MengeAendern pflegemittel.id
-          ]
-        )
+    ( []
+    , [ text pflegemittel.bezeichnung
+      , text pflegemittel.einheit
+      , text <| toString pflegemittel.geplanterVerbrauch
+      , text <| toString pflegemittel.vorhandeneMenge
+      , text mittlere
+      , text letzte
+      , zahlenfeld "0" neue <| MengeAendern pflegemittel.id
+      ]
+    )

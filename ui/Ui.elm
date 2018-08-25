@@ -1,8 +1,8 @@
-module Ui exposing (versteckt, zentrierteElemente, p, fehlermeldung, formular, tabelle, textfeld, textbereich, zahlenfeld, emailfeld, ankreuzfeld, auswahlfeld, optionsfeld)
+module Ui exposing (ankreuzfeld, auswahlfeld, emailfeld, fehlermeldung, formular, optionsfeld, p, tabelle, textbereich, textfeld, versteckt, zahlenfeld, zentrierteElemente)
 
-import Html exposing (Html, Attribute, form, tbody, tr, text, textarea, select, option)
-import Html.Attributes exposing (property, attribute, type_, placeholder, value, checked, disabled, rows, style)
-import Html.Events exposing (onSubmit, onInput, onCheck)
+import Html exposing (Attribute, Html, form, option, select, tbody, text, textarea, tr)
+import Html.Attributes exposing (attribute, checked, disabled, placeholder, property, rows, style, type_, value)
+import Html.Events exposing (onCheck, onInput, onSubmit)
 import Json.Encode
 
 
@@ -76,7 +76,7 @@ p attributes children =
         style_ =
             style largePadding
     in
-        Html.p (style_ :: attributes) children
+    Html.p (style_ :: attributes) children
 
 
 table attributes children =
@@ -84,7 +84,7 @@ table attributes children =
         style_ =
             style fullWidth
     in
-        Html.table (style_ :: attributes) children
+    Html.table (style_ :: attributes) children
 
 
 thead attributes children =
@@ -92,7 +92,7 @@ thead attributes children =
         style_ =
             style stickyTop
     in
-        Html.thead (style_ :: attributes) children
+    Html.thead (style_ :: attributes) children
 
 
 th attributes children =
@@ -100,7 +100,7 @@ th attributes children =
         style_ =
             style <| largePadding ++ darkGrayBackground
     in
-        Html.th (style_ :: attributes) children
+    Html.th (style_ :: attributes) children
 
 
 td attributes children =
@@ -108,7 +108,7 @@ td attributes children =
         style_ =
             style <| largePadding ++ centeredText
     in
-        Html.td (style_ :: attributes) children
+    Html.td (style_ :: attributes) children
 
 
 input attributes children =
@@ -116,7 +116,7 @@ input attributes children =
         style_ =
             style <| largeHeight
     in
-        Html.input (style_ :: attributes) children
+    Html.input (style_ :: attributes) children
 
 
 fehlermeldung : String -> Html msg
@@ -188,7 +188,7 @@ auswahlfeld options onInput_ =
         optionItem =
             \( value_, text_ ) -> option [ attribute "value" value_ ] [ text text_ ]
     in
-        select [ onInput onInput_, style_ ] <| List.map optionItem options
+    select [ onInput onInput_, style_ ] <| List.map optionItem options
 
 
 optionsfeld : String -> Bool -> (Bool -> msg) -> List (Html msg)
