@@ -1,13 +1,14 @@
 module NeueBestellung exposing (main)
 
 import Api exposing (Bestellung, BestellungPosten, Pflegemittel, bestellungenLaden, neueBestellungSpeichern, pflegemittelLaden)
+import Browser
 import Dict exposing (Dict)
 import Html exposing (Attribute, Html, text)
 import Ui exposing (emailfeld, formular, p, tabelle, textbereich, zahlenfeld)
 
 
 main =
-    Html.program
+    Browser.element
         { init = init
         , update = update
         , view = view
@@ -46,8 +47,8 @@ mittelwert werte =
         Just <| (toFloat <| List.sum werte) / (toFloat <| List.length werte)
 
 
-menge : Int -> Bestellung -> Int
-menge pflegemittelId bestellung =
+bestellteMenge : Int -> Bestellung -> Int
+bestellteMenge pflegemittelId bestellung =
     let
         predicate =
             (==) pflegemittelId << .pflegemittelId
@@ -76,14 +77,14 @@ mittlereMenge : Int -> List Bestellung -> Int
 mittlereMenge pflegemittelId bestellungen =
     let
         mengen =
-            List.map (menge pflegemittelId) bestellungen
+            List.map (bestellteMenge pflegemittelId) bestellungen
     in
     Maybe.withDefault 0 <| Maybe.map ceiling <| mittelwert mengen
 
 
 letzteMenge : Int -> Maybe Bestellung -> Int
 letzteMenge pflegemittelId letzteBestellung =
-    Maybe.withDefault 0 <| Maybe.map (menge pflegemittelId) letzteBestellung
+    Maybe.withDefault 0 <| Maybe.map (bestellteMenge pflegemittelId) letzteBestellung
 
 
 neueBestellungAnlegen : List Pflegemittel -> Maybe Bestellung -> Bestellung
@@ -123,17 +124,17 @@ neueBestellungAendern model aenderung =
 
 
 neueBestellungMengeAendern : Model -> Int -> String -> Model
-neueBestellungMengeAendern model pflegemittelId menge =
-    case String.toInt menge of
-        Ok menge ->
+neueBestellungMengeAendern model pflegemittelId neueMenge =
+    case String.toInt neueMenge of
+        Just menge ->
             let
                 neueBestellung =
                     mengeAendern pflegemittelId menge model.neueBestellung
             in
             { model | neueBestellung = neueBestellung, ungueltigeMengen = Dict.remove pflegemittelId model.ungueltigeMengen }
 
-        Err _ ->
-            { model | ungueltigeMengen = Dict.insert pflegemittelId menge model.ungueltigeMengen }
+        Nothing ->
+            { model | ungueltigeMengen = Dict.insert pflegemittelId neueMenge model.ungueltigeMengen }
 
 
 ohneLeerePosten : Bestellung -> Bestellung
@@ -146,8 +147,8 @@ ohneLeerePosten bestellung =
     { bestellung | posten = List.filter nichtLeer bestellung.posten }
 
 
-init : ( Model, Cmd Msg )
-init =
+init : () -> ( Model, Cmd Msg )
+init _ =
     ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty False "" ""
     , pflegemittelLaden PflegemittelLaden
     )
@@ -207,7 +208,7 @@ view model =
 
 
 neueBestellungTabelle : List Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> Html Msg
-neueBestellungTabelle pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
+neueBestellungTabelle allePflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
     let
         ueberschriften =
             [ "Bezeichnung", "Einheit", "geplanter Verbrauch", "vorhandene Menge", "mittlere Menge", "letzte Menge", "Menge" ]
@@ -215,28 +216,28 @@ neueBestellungTabelle pflegemittel bestellungen letzteBestellung neueBestellung 
         zeile =
             \pflegemittel -> neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen
     in
-    tabelle ueberschriften <| List.map zeile pflegemittel
+    tabelle ueberschriften <| List.map zeile allePflegemittel
 
 
 neueBestellungZeile : Pflegemittel -> List Bestellung -> Maybe Bestellung -> Bestellung -> Dict Int String -> ( List (Attribute Msg), List (Html Msg) )
 neueBestellungZeile pflegemittel bestellungen letzteBestellung neueBestellung ungueltigeMengen =
     let
         mittlere =
-            toString <| mittlereMenge pflegemittel.id bestellungen
+            String.fromInt <| mittlereMenge pflegemittel.id bestellungen
 
         letzte =
-            toString <| letzteMenge pflegemittel.id letzteBestellung
+            String.fromInt <| letzteMenge pflegemittel.id letzteBestellung
 
         neue =
             Maybe.withDefault
-                (toString <| menge pflegemittel.id neueBestellung)
+                (String.fromInt <| bestellteMenge pflegemittel.id neueBestellung)
                 (Dict.get pflegemittel.id ungueltigeMengen)
     in
     ( []
     , [ text pflegemittel.bezeichnung
       , text pflegemittel.einheit
-      , text <| toString pflegemittel.geplanterVerbrauch
-      , text <| toString pflegemittel.vorhandeneMenge
+      , text <| String.fromInt pflegemittel.geplanterVerbrauch
+      , text <| String.fromInt pflegemittel.vorhandeneMenge
       , text mittlere
       , text letzte
       , zahlenfeld "0" neue <| MengeAendern pflegemittel.id

@@ -1,13 +1,14 @@
 module Pflegemittel exposing (main)
 
 import Api exposing (Pflegemittel, pflegemittelLaden, pflegemittelSpeichern)
+import Browser
 import Dict exposing (Dict)
 import Html exposing (Attribute, Html)
 import Ui exposing (ankreuzfeld, formular, optionsfeld, p, tabelle, textfeld, versteckt, zahlenfeld, zentrierteElemente)
 
 
 main =
-    Html.program
+    Browser.element
         { init = init
         , update = update
         , view = view
@@ -45,7 +46,7 @@ type Msg
 
 
 eigenschaftAendern : List Pflegemittel -> Int -> (Pflegemittel -> Pflegemittel) -> List Pflegemittel
-eigenschaftAendern pflegemittel id aenderung =
+eigenschaftAendern allePflegemittel id aenderung =
     let
         eintragAendern =
             \pflegemittel ->
@@ -55,7 +56,7 @@ eigenschaftAendern pflegemittel id aenderung =
                 else
                     pflegemittel
     in
-    List.map eintragAendern pflegemittel
+    List.map eintragAendern allePflegemittel
 
 
 pflegemittelAuswerten : Model -> List Pflegemittel -> Model
@@ -71,31 +72,31 @@ pflegemittelAuswerten model pflegemittel =
 
 
 geplanterVerbrauchAendern : Model -> Int -> String -> Model
-geplanterVerbrauchAendern model id geplanterVerbrauch =
-    case String.toInt geplanterVerbrauch of
-        Ok geplanterVerbrauch ->
+geplanterVerbrauchAendern model id neuerGeplanterVerbrauch =
+    case String.toInt neuerGeplanterVerbrauch of
+        Just geplanterVerbrauch ->
             let
                 pflegemittel =
                     eigenschaftAendern model.pflegemittel id <| \val -> { val | geplanterVerbrauch = geplanterVerbrauch }
             in
             { model | pflegemittel = pflegemittel, ungueltigeVerbraeuche = Dict.remove id model.ungueltigeVerbraeuche }
 
-        Err _ ->
-            { model | ungueltigeVerbraeuche = Dict.insert id geplanterVerbrauch model.ungueltigeVerbraeuche }
+        Nothing ->
+            { model | ungueltigeVerbraeuche = Dict.insert id neuerGeplanterVerbrauch model.ungueltigeVerbraeuche }
 
 
 vorhandeneMengeAendern : Model -> Int -> String -> Model
-vorhandeneMengeAendern model id vorhandeneMenge =
-    case String.toInt vorhandeneMenge of
-        Ok vorhandeneMenge ->
+vorhandeneMengeAendern model id neueVorhandeneMenge =
+    case String.toInt neueVorhandeneMenge of
+        Just vorhandeneMenge ->
             let
                 pflegemittel =
                     eigenschaftAendern model.pflegemittel id <| \val -> { val | vorhandeneMenge = vorhandeneMenge }
             in
             { model | pflegemittel = pflegemittel, ungueltigeMengen = Dict.remove id model.ungueltigeMengen }
 
-        Err _ ->
-            { model | ungueltigeMengen = Dict.insert id vorhandeneMenge model.ungueltigeMengen }
+        Nothing ->
+            { model | ungueltigeMengen = Dict.insert id neueVorhandeneMenge model.ungueltigeMengen }
 
 
 geaendertePflegemittel : Model -> List Pflegemittel
@@ -108,8 +109,8 @@ geaendertePflegemittel model =
     List.filter geaendert model.pflegemittel
 
 
-init : ( Model, Cmd Msg )
-init =
+init : () -> ( Model, Cmd Msg )
+init _ =
     ( Model [] [] Dict.empty Dict.empty False True False "" ""
     , pflegemittelLaden PflegemittelLaden
     )
@@ -176,7 +177,7 @@ view model =
 
         inhalt =
             [ pflegemittelTabelle model.pflegemittel model.ungueltigeVerbraeuche model.ungueltigeMengen model.nurVerwendeteZeigen model.nurUngezaehlteZeigen
-            , p [ zentrierteElemente ] <|
+            , p zentrierteElemente <|
                 []
                     ++ optionsfeld "Nur verwendete zeigen" model.nurVerwendeteZeigen NurVerwendeteZeigenAendern
                     ++ optionsfeld "Nur ungezählte anzeigen" model.nurUngezaehlteZeigen NurUngezaehlteZeigenAendern
@@ -186,7 +187,7 @@ view model =
 
 
 pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Dict Int String -> Bool -> Bool -> Html Msg
-pflegemittelTabelle pflegemittel ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen =
+pflegemittelTabelle allePflegemittel ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen =
     let
         ueberschriften =
             [ "Bezeichnung", "Einheit", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
@@ -197,7 +198,7 @@ pflegemittelTabelle pflegemittel ungueltigeVerbraeuche ungueltigeMengen nurVerwe
         zeile =
             \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter
     in
-    tabelle ueberschriften <| List.map zeile pflegemittel
+    tabelle ueberschriften <| List.map zeile allePflegemittel
 
 
 pflegemittelZeile : Pflegemittel -> Dict Int String -> Dict Int String -> (Pflegemittel -> Bool) -> ( List (Attribute Msg), List (Html Msg) )
@@ -205,12 +206,12 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter =
     let
         geplanterVerbrauch =
             Maybe.withDefault
-                (toString <| pflegemittel.geplanterVerbrauch)
+                (String.fromInt <| pflegemittel.geplanterVerbrauch)
                 (Dict.get pflegemittel.id ungueltigeVerbraeuche)
 
         vorhandeneMenge =
             Maybe.withDefault
-                (toString <| pflegemittel.vorhandeneMenge)
+                (String.fromInt <| pflegemittel.vorhandeneMenge)
                 (Dict.get pflegemittel.id ungueltigeMengen)
 
         gefiltert =

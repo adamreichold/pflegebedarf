@@ -12,125 +12,101 @@ innerHtml html =
 
 
 quarterWidth =
-    [ ( "width", "25%" ) ]
+    style "width" "25%"
 
 
 fullWidth =
-    [ ( "width", "100%" ) ]
+    style "width" "100%"
 
 
 largePadding =
-    [ ( "padding", "1em" ) ]
+    style "padding" "1em"
 
 
 largeWidth =
-    [ ( "width", "3em" ) ]
+    style "width" "3em"
 
 
 largeHeight =
-    [ ( "height", "3em" ) ]
+    style "height" "3em"
 
 
 centeredText =
-    [ ( "text-align", "center" ) ]
+    style "text-align" "center"
 
 
 boldRedText =
-    [ ( "font-weight", "bold" ), ( "color", "red" ) ]
+    [ style "font-weight" "bold", style "color" "red" ]
 
 
 stickyTop =
-    [ ( "position", "sticky" ), ( "top", "0" ) ]
+    [ style "position" "sticky", style "top" "0" ]
 
 
 lightGrayBackground =
-    [ ( "background-color", "lightgray" ) ]
+    style "background-color" "lightgray"
 
 
 darkGrayBackground =
-    [ ( "background-color", "darkgray" ) ]
+    style "background-color" "darkgray"
 
 
 displayNone =
-    [ ( "display", "none" ) ]
+    style "display" "none"
 
 
 displayFlex =
-    [ ( "display", "flex" ) ]
+    style "display" "flex"
 
 
 alignItemsCenter =
-    [ ( "align-items", "center" ) ]
+    style "align-items" "center"
 
 
 versteckt =
-    style displayNone
+    displayNone
 
 
 zentrierteElemente =
-    style <| displayFlex ++ alignItemsCenter
+    [ displayFlex, alignItemsCenter ]
 
 
 p attributes children =
-    let
-        style_ =
-            style largePadding
-    in
-    Html.p (style_ :: attributes) children
+    Html.p (largePadding :: attributes) children
 
 
 table attributes children =
-    let
-        style_ =
-            style fullWidth
-    in
-    Html.table (style_ :: attributes) children
+    Html.table (fullWidth :: attributes) children
 
 
 thead attributes children =
-    let
-        style_ =
-            style stickyTop
-    in
-    Html.thead (style_ :: attributes) children
+    Html.thead (stickyTop ++ attributes) children
 
 
 th attributes children =
-    let
-        style_ =
-            style <| largePadding ++ darkGrayBackground
-    in
-    Html.th (style_ :: attributes) children
+    Html.th (largePadding :: darkGrayBackground :: attributes) children
 
 
 td attributes children =
-    let
-        style_ =
-            style <| largePadding ++ centeredText
-    in
-    Html.td (style_ :: attributes) children
+    Html.td (largePadding :: centeredText :: attributes) children
 
 
 input attributes children =
-    let
-        style_ =
-            style <| largeHeight
-    in
-    Html.input (style_ :: attributes) children
+    Html.input (largeHeight :: attributes) children
 
 
 fehlermeldung : String -> Html msg
 fehlermeldung fehler =
-    p [ style boldRedText, innerHtml fehler ] []
+    p (innerHtml fehler :: boldRedText) []
 
 
 formular : msg -> String -> Bool -> List (Html msg) -> String -> String -> Html msg
 formular absendenMsg absendenValue absendenEnabled inhalt meldung letzterFehler =
     form
-        [ onSubmit absendenMsg, style <| largePadding ++ lightGrayBackground ]
+        [ onSubmit absendenMsg, largePadding, lightGrayBackground ]
     <|
         inhalt
-            ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled, style quarterWidth ] [] ]
+            ++ [ p [] [ input [ type_ "submit", value absendenValue, disabled <| not <| absendenEnabled, quarterWidth ] [] ]
                , p [] [ text meldung ]
                , fehlermeldung letzterFehler
                ]
@@ -156,41 +132,38 @@ tabelle ueberschriften zeilen =
 
 textfeld : String -> (String -> msg) -> Html msg
 textfeld value_ onInput_ =
-    input [ type_ "text", value value_, onInput onInput_, style fullWidth ] []
+    input [ type_ "text", value value_, onInput onInput_, fullWidth ] []
 
 
 textbereich : String -> String -> (String -> msg) -> Html msg
 textbereich placeholder_ value_ onInput_ =
-    textarea [ placeholder placeholder_, value value_, onInput onInput_, rows 20, style fullWidth ] []
+    textarea [ placeholder placeholder_, value value_, onInput onInput_, rows 20, fullWidth ] []
 
 
 zahlenfeld : String -> String -> (String -> msg) -> Html msg
 zahlenfeld min_ value_ onInput_ =
-    input [ type_ "number", Html.Attributes.min min_, value value_, onInput onInput_, style fullWidth ] []
+    input [ type_ "number", Html.Attributes.min min_, value value_, onInput onInput_, fullWidth ] []
 
 
 emailfeld : String -> String -> (String -> msg) -> Html msg
 emailfeld placeholder_ value_ onInput_ =
-    input [ type_ "email", placeholder placeholder_, value value_, onInput onInput_, style fullWidth ] []
+    input [ type_ "email", placeholder placeholder_, value value_, onInput onInput_, fullWidth ] []
 
 
 ankreuzfeld : Bool -> (Bool -> msg) -> Html msg
 ankreuzfeld checked_ onCheck_ =
-    input [ type_ "checkbox", checked checked_, onCheck onCheck_, style largeWidth ] []
+    input [ type_ "checkbox", checked checked_, onCheck onCheck_, largeWidth ] []
 
 
 auswahlfeld : List ( String, String ) -> (String -> msg) -> Html msg
 auswahlfeld options onInput_ =
     let
-        style_ =
-            style <| quarterWidth ++ largeHeight
-
         optionItem =
             \( value_, text_ ) -> option [ attribute "value" value_ ] [ text text_ ]
     in
-    select [ onInput onInput_, style_ ] <| List.map optionItem options
+    select [ onInput onInput_, quarterWidth, largeHeight ] <| List.map optionItem options
 
 
 optionsfeld : String -> Bool -> (Bool -> msg) -> List (Html msg)
 optionsfeld text_ checked_ onCheck_ =
-    [ input [ type_ "checkbox", checked checked_, onCheck onCheck_, style <| largeWidth ] [], text text_ ]
+    [ input [ type_ "checkbox", checked checked_, onCheck onCheck_, largeWidth ] [], text text_ ]

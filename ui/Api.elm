@@ -1,11 +1,10 @@
 module Api exposing (Bestellung, BestellungMenge, BestellungPosten, Pflegemittel, PflegemittelBestand, bestellungenLaden, bestellungenMengeLaden, neueBestellungSpeichern, pflegemittelBestandLaden, pflegemittelLaden, pflegemittelSpeichern)
 
-import Date exposing (Date, fromTime)
 import Http
 import Json.Decode as Decode
-import Json.Decode.Extra exposing ((|:))
+import Json.Decode.Extra exposing (andMap)
 import Json.Encode as Encode
-import Time exposing (second)
+import Time exposing (millisToPosix)
 
 
 type alias Pflegemittel =
@@ -36,25 +35,25 @@ type alias Bestellung =
 
 
 type alias PflegemittelBestand =
-    { zeitstempel : Date
+    { zeitstempel : Time.Posix
     , geplanterVerbrauch : Int
     , vorhandeneMenge : Int
     }
 
 
 type alias BestellungMenge =
-    { zeitstempel : Date
+    { zeitstempel : Time.Posix
     , menge : Int
     }
 
 
-decodeZeitstempel : Decode.Decoder Date
+decodeZeitstempel : Decode.Decoder Time.Posix
 decodeZeitstempel =
     let
-        toDate =
-            fromTime << (*) second << toFloat
+        toPosix =
+            millisToPosix << (//) 1000
     in
-    Decode.map toDate Decode.int
+    Decode.map toPosix Decode.int
 
 
 encodeId : Int -> Encode.Value
@@ -69,15 +68,15 @@ encodeId id =
 decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
     Decode.succeed Pflegemittel
-        |: Decode.field "id" Decode.int
-        |: Decode.field "bezeichnung" Decode.string
-        |: Decode.field "einheit" Decode.string
-        |: Decode.field "hersteller_und_produkt" Decode.string
-        |: Decode.field "pzn_oder_ref" Decode.string
-        |: Decode.field "geplanter_verbrauch" Decode.int
-        |: Decode.field "vorhandene_menge" Decode.int
-        |: Decode.field "wird_verwendet" Decode.bool
-        |: Decode.field "wurde_gezaehlt" Decode.bool
+        |> andMap (Decode.field "id" Decode.int)
+        |> andMap (Decode.field "bezeichnung" Decode.string)
+        |> andMap (Decode.field "einheit" Decode.string)
+        |> andMap (Decode.field "hersteller_und_produkt" Decode.string)
+        |> andMap (Decode.field "pzn_oder_ref" Decode.string)
+        |> andMap (Decode.field "geplanter_verbrauch" Decode.int)
+        |> andMap (Decode.field "vorhandene_menge" Decode.int)
+        |> andMap (Decode.field "wird_verwendet" Decode.bool)
+        |> andMap (Decode.field "wurde_gezaehlt" Decode.bool)
 
 
 encodePflegemittel : Pflegemittel -> Encode.Value
@@ -125,7 +124,7 @@ encodeBestellung bestellung =
         [ ( "id", encodeId bestellung.id )
         , ( "empfaenger", Encode.string bestellung.empfaenger )
         , ( "nachricht", Encode.string bestellung.nachricht )
-        , ( "posten", Encode.list <| List.map encodeBestellungPosten bestellung.posten )
+        , ( "posten", Encode.list encodeBestellungPosten bestellung.posten )
         ]
 
 
@@ -150,15 +149,26 @@ fehlerBehandeln result =
         Ok val ->
             Ok val
 
-        Err (Http.BadPayload err response) ->
-            let
-                _ =
-                    Debug.log "Err" err
-            in
-            Err response.body
-
         Err err ->
-            Err <| toString err
+            let
+                msg =
+                    case err of
+                        Http.BadStatus response ->
+                            response.body
+
+                        Http.BadPayload _ response ->
+                            response.body
+
+                        Http.Timeout ->
+                            "Zeitüberschreitung"
+
+                        Http.NetworkError ->
+                            "Netzwerkfehler"
+
+                        Http.BadUrl _ ->
+                            "interner Fehler"
+            in
+            Err msg
 
 
 objektLaden : (Result String a -> msg) -> String -> Decode.Decoder a -> Cmd msg
@@ -197,7 +207,7 @@ pflegemittelSpeichern msg pflegemittel =
             Decode.list decodePflegemittel
 
         encoder =
-            Encode.list << List.map encodePflegemittel
+            Encode.list encodePflegemittel
     in
     objektSpeichern msg url decoder encoder pflegemittel
 
@@ -233,7 +243,7 @@ pflegemittelBestandLaden : Int -> (Result String (List PflegemittelBestand) -> m
 pflegemittelBestandLaden id msg =
     let
         url =
-            "/cgi-bin/pflegebedarf/api/pflegemittel_bestand?id=" ++ toString id
+            "/cgi-bin/pflegebedarf/api/pflegemittel_bestand?id=" ++ String.fromInt id
 
         decoder =
             Decode.list decodePflegemittelBestand
@@ -245,7 +255,7 @@ bestellungenMengeLaden : Int -> (Result String (List BestellungMenge) -> msg) ->
 bestellungenMengeLaden id msg =
     let
         url =
-            "/cgi-bin/pflegebedarf/api/bestellungen_menge?id=" ++ toString id
+            "/cgi-bin/pflegebedarf/api/bestellungen_menge?id=" ++ String.fromInt id
 
         decoder =
             Decode.list decodeBestellungMenge

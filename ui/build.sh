@@ -2,11 +2,9 @@
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-export PATH=node_modules/elm/binwrappers:$PATH
-
 mkdir -p html
 
-for MODULE in Pflegemittel NeueBestellung PflegemittelBestand
+for MODULE in Pflegemittel NeueBestellung
 do
-    elm-make ${MODULE}.elm --output=html/${MODULE}.html
+    node_modules/elm/bin/elm make ${MODULE}.elm --optimize --output=html/${MODULE}.html
 done
