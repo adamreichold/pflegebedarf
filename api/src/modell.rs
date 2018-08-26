@@ -26,16 +26,3 @@ pub struct Posten {
     pub pflegemittel_id: i64,
     pub menge: u32,
 }
-
-#[derive(Serialize, Deserialize)]
-pub struct Bestand {
-    pub zeitstempel: i64,
-    pub geplanter_verbrauch: u32,
-    pub vorhandene_menge: u32,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Menge {
-    pub zeitstempel: i64,
-    pub menge: u32,
-}

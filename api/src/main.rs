@@ -21,8 +21,8 @@ use rusqlite::{Connection, Transaction};
 use cgi::{die, read_from_stdin, write_to_stdout, Die};
 
 use datenbank::{
-    bestand_laden, bestellung_speichern, bestellungen_laden, create_schema, menge_laden,
-    pflegemittel_laden, pflegemittel_speichern,
+    bestellung_speichern, bestellungen_laden, create_schema, pflegemittel_laden,
+    pflegemittel_speichern,
 };
 
 use versenden::bestellung_versenden;
@@ -48,10 +48,6 @@ fn main() {
         ("GET", "/bestellungen") => get_bestellungen(&txn, &params),
 
         ("POST", "/bestellungen") => post_bestellungen(&txn, &params),
-
-        ("GET", "/pflegemittel_bestand") => get_bestand(&txn, &params),
-
-        ("GET", "/bestellungen_menge") => get_menge(&txn, &params),
 
         _ => die(404, "Methode oder Pfad werden nicht unterstützt!"),
     };
@@ -82,40 +78,20 @@ fn post_bestellungen(txn: &Transaction, params: &Params) {
     get_bestellungen(txn, params);
 }
 
-fn get_bestand(txn: &Transaction, params: &Params) {
-    write_to_stdout(&bestand_laden(txn, params.id))
-}
-
-fn get_menge(txn: &Transaction, params: &Params) {
-    write_to_stdout(&menge_laden(txn, params.id))
-}
-
 struct Params {
-    id: Option<i64>,
     limit: Option<u32>,
 }
 
 fn parse_params() -> Params {
-    let mut params = Params {
-        id: None,
-        limit: None,
-    };
+    let mut params = Params { limit: None };
 
-    var("QUERY_STRING").ok().map(|query| {
+    if let Ok(query) = var("QUERY_STRING") {
         url::form_urlencoded::parse(query.as_bytes()).for_each(|(key, value)| {
-            match key.as_ref() {
-                "id" => {
-                    params.id = value.parse().ok();
-                }
-
-                "limit" => {
-                    params.limit = value.parse().ok();
-                }
-
-                _ => {}
-            };
+            if key == "limit" {
+                params.limit = value.parse().ok();
+            }
         })
-    });
+    }
 
     params
 }

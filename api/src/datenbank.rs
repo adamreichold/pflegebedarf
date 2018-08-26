@@ -1,8 +1,7 @@
 use rusqlite::types::ToSql;
 use rusqlite::{Connection, Row, Statement, Transaction};
 
-use super::cgi::Die;
-use super::modell::{Bestand, Bestellung, Menge, Pflegemittel, Posten};
+use super::modell::{Bestellung, Pflegemittel, Posten};
 
 trait FromRow {
     fn from_row(row: &Row) -> Self;
@@ -41,25 +40,6 @@ impl FromRow for Posten {
     fn from_row(row: &Row) -> Self {
         Self {
             pflegemittel_id: row.get("pflegemittel_id"),
-            menge: row.get("menge"),
-        }
-    }
-}
-
-impl FromRow for Bestand {
-    fn from_row(row: &Row) -> Self {
-        Bestand {
-            zeitstempel: row.get("zeitstempel"),
-            geplanter_verbrauch: row.get("geplanter_verbrauch"),
-            vorhandene_menge: row.get("vorhandene_menge"),
-        }
-    }
-}
-
-impl FromRow for Menge {
-    fn from_row(row: &Row) -> Self {
-        Menge {
-            zeitstempel: row.get("zeitstempel"),
             menge: row.get("menge"),
         }
     }
@@ -267,34 +247,4 @@ ORDER BY pmb.zeitstempel DESC LIMIT 1
 
             (p, pm)
         }).collect()
-}
-
-pub fn bestand_laden(txn: &Transaction, id: Option<i64>) -> Vec<Bestand> {
-    let id = id.die(
-        400,
-        "Der Parameter id fehlt oder konnte nicht verarbeitet werden.",
-    );
-
-    let mut stmt = txn.prepare("SELECT zeitstempel, geplanter_verbrauch, vorhandene_menge FROM pflegemittel_bestand WHERE pflegemittel_id = ? ORDER BY zeitstempel").unwrap();
-
-    collect_rows(&mut stmt, &[&id])
-}
-
-pub fn menge_laden(txn: &Transaction, id: Option<i64>) -> Vec<Menge> {
-    let id = id.die(
-        400,
-        "Der Parameter id fehlt oder konnte nicht verarbeitet werden.",
-    );
-
-    let mut stmt = txn
-        .prepare(
-            r#"
-SELECT b.zeitstempel, bp.menge
-FROM bestellungen b, bestellungen_posten bp
-WHERE bp.bestellung_id = b.id AND bp.pflegemittel_id = ?
-ORDER BY b.zeitstempel
-        "#,
-        ).unwrap();
-
-    collect_rows(&mut stmt, &[&id])
 }
