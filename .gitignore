@@ -1,6 +1,8 @@
-/**/target/
+/target/
 Cargo.lock
 /ui/node_modules/
 /ui/package-lock.json
 /ui/elm-stuff/
 /ui/html/
+datenbank.sqlite
+versenden.yaml

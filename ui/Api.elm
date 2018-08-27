@@ -151,7 +151,7 @@ pflegemittelLaden : (Result String (List Pflegemittel) -> msg) -> Cmd msg
 pflegemittelLaden msg =
     let
         url =
-            "/cgi-bin/pflegebedarf/api/pflegemittel"
+            "/api/pflegemittel"
 
         decoder =
             Decode.list decodePflegemittel
@@ -163,7 +163,7 @@ pflegemittelSpeichern : (Result String (List Pflegemittel) -> msg) -> List Pfleg
 pflegemittelSpeichern msg pflegemittel =
     let
         url =
-            "/cgi-bin/pflegebedarf/api/pflegemittel"
+            "/api/pflegemittel"
 
         decoder =
             Decode.list decodePflegemittel
@@ -178,7 +178,7 @@ bestellungenLaden : (Result String (List Bestellung) -> msg) -> Cmd msg
 bestellungenLaden msg =
     let
         url =
-            "/cgi-bin/pflegebedarf/api/bestellungen?limit=3"
+            "/api/bestellungen?limit=3"
 
         decoder =
             Decode.list decodeBestellung
@@ -190,7 +190,7 @@ neueBestellungSpeichern : (Result String (List Bestellung) -> msg) -> Bestellung
 neueBestellungSpeichern msg bestellung =
     let
         url =
-            "/cgi-bin/pflegebedarf/api/bestellungen?limit=3"
+            "/api/bestellungen?limit=3"
 
         decoder =
             Decode.list decodeBestellung
