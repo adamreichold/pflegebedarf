@@ -1,9 +1,10 @@
-#![feature(plugin, custom_derive)]
-#![plugin(rocket_codegen)]
 #![recursion_limit = "1024"]
 
-extern crate rocket;
-extern crate rocket_contrib;
+extern crate bodyparser;
+extern crate iron;
+extern crate persistent;
+extern crate router;
+extern crate urlencoded;
 
 extern crate serde;
 #[macro_use]
@@ -25,16 +26,17 @@ extern crate regex;
 #[macro_use]
 extern crate lazy_static;
 
-use std::alloc::System;
-use std::io::Cursor;
-use std::sync::Mutex;
+use bodyparser::Struct;
+use iron::headers::{ContentEncoding, ContentType, Encoding};
+use iron::prelude::*;
+use iron::status::Status;
+use iron::typemap::Key;
+use persistent::Write;
+use router::Router;
+use urlencoded::UrlEncodedQuery;
 
-use rocket::http::hyper::header::{ContentEncoding, Encoding};
-use rocket::http::{ContentType, Status};
-use rocket::request::Request;
-use rocket::response::{Responder, Response};
-use rocket::State;
-use rocket_contrib::Json;
+use serde::Serialize;
+use serde_json::to_vec;
 
 use rusqlite::{Connection, Transaction};
 
@@ -45,124 +47,186 @@ mod modell;
 mod versenden;
 
 #[global_allocator]
-static ALLOC: System = System;
+static ALLOC: ::std::alloc::System = ::std::alloc::System;
 
 mod errors {
     error_chain! {
         foreign_links {
             Io(::std::io::Error);
             SQLite(::rusqlite::Error);
+            Json(::serde_json::Error);
             Yaml(::serde_yaml::Error);
             LettreSmtp(::lettre::smtp::error::Error);
             LettreEmail(::lettre_email::error::Error);
+            Http(::iron::error::HttpError);
+            Url(::urlencoded::UrlDecodingError);
+            Body(::bodyparser::BodyError);
         }
     }
 }
 
 use errors::{Error, Result};
 
-impl<'r> Responder<'r> for Error {
-    fn respond_to(self, _: &Request) -> ::std::result::Result<Response<'r>, Status> {
-        Response::build()
-            .status(Status::BadRequest)
-            .header(ContentType::Plain)
-            .sized_body(Cursor::new(self.to_string()))
-            .ok()
+impl From<Error> for ::iron::error::IronError {
+    fn from(err: Error) -> Self {
+        let mut resp = ::iron::Response::new();
+
+        resp.status = Some(Status::BadRequest);
+        resp.headers.set(ContentType::plaintext());
+        resp.body = Some(Box::new(err.to_string()));
+
+        Self {
+            error: Box::new(err),
+            response: resp,
+        }
     }
 }
 
-fn main() {
-    let conn = datenbank::schema_anlegen().expect("Konnte Datenbankschema nicht anlegen.");
+fn main() -> Result<()> {
+    let conn = datenbank::schema_anlegen()?;
 
-    rocket::ignite()
-        .manage(Mutex::new(conn))
-        .mount(
-            "/ui",
-            routes![pflegemittel_anzeigen, neue_bestellung_anlegen],
-        ).mount(
-            "/api",
-            routes![
-                pflegemittel_laden,
-                pflegemittel_speichern,
-                bestellungen_laden,
-                bestellung_versenden
-            ],
-        ).launch();
+    let mut router = Router::new();
+
+    router.get(
+        "/ui/Pflegemittel",
+        pflegemittel_anzeigen,
+        "pflegemittel_anzeigen",
+    );
+    router.get(
+        "/ui/NeueBestellung",
+        neue_bestellung_anlegen,
+        "neue_bestellung_anlegen",
+    );
+
+    router.get(
+        "/api/pflegemittel",
+        pflegemittel_laden,
+        "pflegemittel_laden",
+    );
+    router.post(
+        "/api/pflegemittel",
+        pflegemittel_speichern,
+        "pflegemittel_speichern",
+    );
+    router.get(
+        "/api/bestellungen",
+        bestellungen_laden,
+        "bestellungen_laden",
+    );
+    router.post(
+        "/api/bestellungen",
+        bestellung_versenden,
+        "bestellungen_versenden",
+    );
+
+    let mut chain = Chain::new(router);
+
+    chain.link_before(Write::<Database>::one(conn));
+
+    Iron::new(chain).http(("0.0.0.0", 8080))?;
+
+    Ok(())
 }
 
-#[get("/Pflegemittel")]
-fn pflegemittel_anzeigen() -> Response<'static> {
+fn pflegemittel_anzeigen(_: &mut Request) -> IronResult<Response> {
     eingebette_seite_ausliefern(include_bytes!("../ui/html/Pflegemittel.html.gz"))
 }
 
-#[get("/NeueBestellung")]
-fn neue_bestellung_anlegen() -> Response<'static> {
+fn neue_bestellung_anlegen(_: &mut Request) -> IronResult<Response> {
     eingebette_seite_ausliefern(include_bytes!("../ui/html/NeueBestellung.html.gz"))
 }
 
-fn eingebette_seite_ausliefern(body: &[u8]) -> Response {
-    Response::build()
-        .header(ContentType::HTML)
-        .header(ContentEncoding(vec![Encoding::Gzip]))
-        .sized_body(Cursor::new(body))
-        .finalize()
+fn pflegemittel_laden(req: &mut Request) -> IronResult<Response> {
+    Ok(anfrage_verarbeiten(req, |_, txn| {
+        datenbank::pflegemittel_laden(txn)
+    })?)
 }
 
-#[get("/pflegemittel")]
-fn pflegemittel_laden(conn: State<Mutex<Connection>>) -> Result<Json<Vec<modell::Pflegemittel>>> {
-    anfrage_verarbeiten(&conn, |txn| Ok(datenbank::pflegemittel_laden(txn)?))
+fn pflegemittel_speichern(req: &mut Request) -> IronResult<Response> {
+    Ok(anfrage_verarbeiten(req, |req, txn| {
+        match req.get::<Struct<Vec<modell::Pflegemittel>>>()? {
+            None => bail!("Keine Pflegemittel übertragen."),
+            Some(pflegemittel) => {
+                datenbank::pflegemittel_speichern(txn, pflegemittel, get_time().sec)?;
+            }
+        }
+
+        datenbank::pflegemittel_laden(txn)
+    })?)
 }
 
-#[post("/pflegemittel", data = "<pflegemittel>")]
-fn pflegemittel_speichern(
-    conn: State<Mutex<Connection>>,
-    pflegemittel: Json<Vec<modell::Pflegemittel>>,
-) -> Result<Json<Vec<modell::Pflegemittel>>> {
-    anfrage_verarbeiten(&conn, |txn| {
-        datenbank::pflegemittel_speichern(txn, pflegemittel.into_inner(), get_time().sec)?;
-        Ok(datenbank::pflegemittel_laden(txn)?)
-    })
+fn bestellungen_laden(req: &mut Request) -> IronResult<Response> {
+    Ok(anfrage_verarbeiten(req, |req, txn| {
+        let limit = parse_limit(req)?;
+
+        datenbank::bestellungen_laden(txn, limit)
+    })?)
 }
 
-#[get("/bestellungen?<limit>")]
-fn bestellungen_laden(
-    conn: State<Mutex<Connection>>,
-    limit: Limit,
-) -> Result<Json<Vec<modell::Bestellung>>> {
-    anfrage_verarbeiten(&conn, |txn| {
-        Ok(datenbank::bestellungen_laden(txn, limit.limit)?)
-    })
+fn bestellung_versenden(req: &mut Request) -> IronResult<Response> {
+    Ok(anfrage_verarbeiten(req, |req, txn| {
+        let limit = parse_limit(req)?;
+
+        match req.get::<Struct<modell::Bestellung>>()? {
+            None => bail!("Keine Bestellung übermittelt."),
+            Some(bestellung) => {
+                let bestellung = datenbank::bestellung_speichern(txn, bestellung, get_time().sec)?;
+
+                versenden::bestellung_versenden(txn, bestellung)?;
+            }
+        }
+
+        datenbank::bestellungen_laden(txn, limit)
+    })?)
 }
 
-#[post("/bestellungen?<limit>", data = "<bestellung>")]
-fn bestellung_versenden(
-    conn: State<Mutex<Connection>>,
-    bestellung: Json<modell::Bestellung>,
-    limit: Limit,
-) -> Result<Json<Vec<modell::Bestellung>>> {
-    anfrage_verarbeiten(&conn, |txn| {
-        let bestellung =
-            datenbank::bestellung_speichern(txn, bestellung.into_inner(), get_time().sec)?;
-        versenden::bestellung_versenden(txn, bestellung)?;
-        Ok(datenbank::bestellungen_laden(txn, limit.limit)?)
-    })
+fn eingebette_seite_ausliefern(body: &'static [u8]) -> IronResult<Response> {
+    let mut resp = Response::new();
+
+    resp.status = Some(Status::Ok);
+    resp.body = Some(Box::new(body));
+    resp.headers.set(ContentType::html());
+    resp.headers.set(ContentEncoding(vec![Encoding::Gzip]));
+
+    Ok(resp)
 }
 
-#[derive(Clone, Copy, FromForm)]
-struct Limit {
-    limit: Option<u32>,
-}
-
-fn anfrage_verarbeiten<T, F: FnOnce(&Transaction) -> Result<T>>(
-    conn: &Mutex<Connection>,
+fn anfrage_verarbeiten<T: Serialize, F: FnOnce(&mut Request, &Transaction) -> Result<T>>(
+    req: &mut Request,
     f: F,
-) -> Result<Json<T>> {
-    let mut conn = conn.lock().unwrap();
+) -> Result<Response> {
+    let db = req.get::<Write<Database>>().unwrap();
+    let mut conn = db.lock().unwrap();
     let txn = conn.transaction()?;
 
-    let t = f(&txn)?;
+    let t = f(req, &txn)?;
 
     txn.commit()?;
 
-    Ok(Json(t))
+    let mut resp = Response::new();
+
+    resp.status = Some(Status::Ok);
+    resp.body = Some(Box::new(to_vec(&t)?));
+    resp.headers.set(ContentType::json());
+
+    Ok(resp)
+}
+
+fn parse_limit(req: &mut Request) -> Result<Option<u32>> {
+    let params = req.get_ref::<UrlEncodedQuery>()?;
+
+    let limit = params.get("limit").and_then(|vals| {
+        vals.first()
+            .map(String::as_str)
+            .map(str::parse)
+            .and_then(|res| res.ok())
+    });
+
+    Ok(limit)
+}
+
+struct Database;
+
+impl Key for Database {
+    type Value = Connection;
 }

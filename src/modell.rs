@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Pflegemittel {
     pub id: Option<i64>,
     pub zeitstempel: Option<i64>,
@@ -12,7 +12,7 @@ pub struct Pflegemittel {
     pub wurde_gezaehlt: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Bestellung {
     pub id: Option<i64>,
     pub zeitstempel: Option<i64>,
@@ -21,7 +21,7 @@ pub struct Bestellung {
     pub posten: Vec<Posten>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Posten {
     pub pflegemittel_id: i64,
     pub menge: u32,

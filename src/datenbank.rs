@@ -1,6 +1,7 @@
 use rusqlite::types::ToSql;
-use rusqlite::{Connection, Result, Row, Statement, Transaction};
+use rusqlite::{Connection, Row, Statement, Transaction};
 
+use errors::Result;
 use modell::{Bestellung, Pflegemittel, Posten};
 
 trait FromRow {
