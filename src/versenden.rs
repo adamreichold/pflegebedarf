@@ -6,11 +6,13 @@ use serde_yaml::from_reader;
 use lettre::smtp::authentication::Credentials;
 use lettre::smtp::SmtpTransport;
 use lettre::EmailTransport;
-use lettre_email::EmailBuilder;
+use lettre_email::{EmailBuilder, Mailbox};
 
 use rusqlite::Transaction;
 
 use time::{at, strftime, Timespec};
+
+use regex::Regex;
 
 use super::datenbank::posten_laden;
 use super::modell::{Bestellung, Posten};
@@ -47,12 +49,12 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
     let posten = posten_formatieren(txn, bestellung.posten)?;
 
     let mut email = EmailBuilder::new()
-        .to(bestellung.empfaenger)
-        .from(config.von)
-        .reply_to(config.antwort);
+        .to(parse_mailbox(bestellung.empfaenger))
+        .from(parse_mailbox(config.von))
+        .reply_to(parse_mailbox(config.antwort));
 
     for kopie in config.kopien {
-        email.add_cc(kopie);
+        email.add_cc(parse_mailbox(kopie));
     }
 
     email.set_subject(config.betreff.replace("{datum}", &datum));
@@ -103,4 +105,37 @@ fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Result<String> 
     }
 
     Ok(stichpunkte)
+}
+
+fn parse_mailbox(mbox: String) -> Mailbox {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r#"([^<]+)<([^>]+)>"#).unwrap();
+    }
+
+    if let Some(caps) = RE.captures(&mbox) {
+        return Mailbox::new_with_name(caps[1].trim().to_string(), caps[2].trim().to_string());
+    }
+
+    Mailbox::new(mbox)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_mailbox_without_alias() {
+        assert_eq!(
+            Mailbox::new("foo@bar.org".to_string()),
+            parse_mailbox("foo@bar.org".to_string())
+        );
+    }
+
+    #[test]
+    fn check_mailbox_with_alias() {
+        assert_eq!(
+            Mailbox::new_with_name("foobar".to_string(), "foo@bar.org".to_string()),
+            parse_mailbox("foobar <foo@bar.org>".to_string())
+        );
+    }
 }

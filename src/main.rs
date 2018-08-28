@@ -21,6 +21,10 @@ extern crate time;
 #[macro_use]
 extern crate error_chain;
 
+extern crate regex;
+#[macro_use]
+extern crate lazy_static;
+
 use std::alloc::System;
 use std::io::Cursor;
 use std::sync::Mutex;
