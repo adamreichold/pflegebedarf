@@ -137,13 +137,11 @@ fn neue_bestellung_anlegen(_: &mut Request) -> IronResult<Response> {
 }
 
 fn pflegemittel_laden(req: &mut Request) -> IronResult<Response> {
-    Ok(anfrage_verarbeiten(req, |_, txn| {
-        datenbank::pflegemittel_laden(txn)
-    })?)
+    anfrage_verarbeiten(req, |_, txn| datenbank::pflegemittel_laden(txn))
 }
 
 fn pflegemittel_speichern(req: &mut Request) -> IronResult<Response> {
-    Ok(anfrage_verarbeiten(req, |req, txn| {
+    anfrage_verarbeiten(req, |req, txn| {
         match req.get::<Struct<Vec<modell::Pflegemittel>>>()? {
             None => bail!("Keine Pflegemittel übertragen."),
             Some(pflegemittel) => {
@@ -152,19 +150,19 @@ fn pflegemittel_speichern(req: &mut Request) -> IronResult<Response> {
         }
 
         datenbank::pflegemittel_laden(txn)
-    })?)
+    })
 }
 
 fn bestellungen_laden(req: &mut Request) -> IronResult<Response> {
-    Ok(anfrage_verarbeiten(req, |req, txn| {
+    anfrage_verarbeiten(req, |req, txn| {
         let limit = parse_limit(req)?;
 
         datenbank::bestellungen_laden(txn, limit)
-    })?)
+    })
 }
 
 fn bestellung_versenden(req: &mut Request) -> IronResult<Response> {
-    Ok(anfrage_verarbeiten(req, |req, txn| {
+    anfrage_verarbeiten(req, |req, txn| {
         let limit = parse_limit(req)?;
 
         match req.get::<Struct<modell::Bestellung>>()? {
@@ -177,7 +175,7 @@ fn bestellung_versenden(req: &mut Request) -> IronResult<Response> {
         }
 
         datenbank::bestellungen_laden(txn, limit)
-    })?)
+    })
 }
 
 fn eingebette_seite_ausliefern(body: &'static [u8]) -> IronResult<Response> {
@@ -194,22 +192,29 @@ fn eingebette_seite_ausliefern(body: &'static [u8]) -> IronResult<Response> {
 fn anfrage_verarbeiten<T: Serialize, F: FnOnce(&mut Request, &Transaction) -> Result<T>>(
     req: &mut Request,
     f: F,
-) -> Result<Response> {
-    let db = req.get::<Write<Database>>().unwrap();
-    let mut conn = db.lock().unwrap();
-    let txn = conn.transaction()?;
+) -> IronResult<Response> {
+    fn anfrage_verarbeiten1<T1: Serialize, F1: FnOnce(&mut Request, &Transaction) -> Result<T1>>(
+        req: &mut Request,
+        f: F1,
+    ) -> Result<Response> {
+        let db = req.get::<Write<Database>>().unwrap();
+        let mut conn = db.lock().unwrap();
+        let txn = conn.transaction()?;
 
-    let t = f(req, &txn)?;
+        let t = f(req, &txn)?;
 
-    txn.commit()?;
+        txn.commit()?;
 
-    let mut resp = Response::new();
+        let mut resp = Response::new();
 
-    resp.status = Some(Status::Ok);
-    resp.body = Some(Box::new(to_vec(&t)?));
-    resp.headers.set(ContentType::json());
+        resp.status = Some(Status::Ok);
+        resp.body = Some(Box::new(to_vec(&t)?));
+        resp.headers.set(ContentType::json());
 
-    Ok(resp)
+        Ok(resp)
+    }
+
+    Ok(anfrage_verarbeiten1(req, f)?)
 }
 
 fn parse_limit(req: &mut Request) -> Result<Option<u32>> {

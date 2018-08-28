@@ -4,6 +4,10 @@ authors = ["Adam Reichold <adam.reichold@t-online.de>"]
 version = "0.1.0"
 publish = false
 
+[features]
+default = ["build-ui"]
+build-ui = []
+
 [dependencies]
 iron = "0.6"
 router = "0.6"

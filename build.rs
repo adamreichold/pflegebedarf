@@ -3,9 +3,10 @@ use std::io::{stdout, Result, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
 
-const MODULES: &[&'static str] = &["Pflegemittel", "NeueBestellung"];
-
+#[cfg(feature = "build-ui")]
 fn main() -> Result<()> {
+    const MODULES: &[&'static str] = &["Pflegemittel", "NeueBestellung"];
+
     for module in MODULES {
         let compiled = Command::new("node_modules/elm/bin/elm")
             .current_dir("ui")
@@ -58,3 +59,6 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(not(feature = "build-ui"))]
+fn main() {}
