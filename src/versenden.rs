@@ -14,9 +14,9 @@ use time::{at, strftime, Timespec};
 
 use regex::Regex;
 
-use super::datenbank::posten_laden;
-use super::modell::{Bestellung, Posten};
-use super::Result;
+use datenbank::posten_laden;
+use errors::{Result, ResultExt};
+use modell::{Bestellung, Posten};
 
 #[derive(Deserialize)]
 struct SmtpConfig {
@@ -60,11 +60,16 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
     email.set_subject(config.betreff.replace("{datum}", &datum));
     email.set_text(bestellung.nachricht.replace("{posten}", &posten));
 
-    let mut smtp = SmtpTransport::simple_builder(&config.smtp.domain)?
+    let mut smtp = SmtpTransport::simple_builder(&config.smtp.domain)
+        .chain_err(|| "Konnte SMTP-Verbindung nicht aufbauen.")?
         .credentials(Credentials::new(config.smtp.username, config.smtp.password))
         .build();
 
-    smtp.send(&email.build()?)?;
+    smtp.send(
+        &email
+            .build()
+            .chain_err(|| "Konnte E-Mail nicht erstellen.")?,
+    ).chain_err(|| "Konnte E-Mail nicht versenden.")?;
 
     txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", &[])?;
 

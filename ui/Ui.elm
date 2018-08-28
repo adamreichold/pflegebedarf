@@ -1,14 +1,8 @@
 module Ui exposing (ankreuzfeld, auswahlfeld, emailfeld, fehlermeldung, formular, optionsfeld, p, tabelle, textbereich, textfeld, versteckt, zahlenfeld, zentrierteElemente)
 
 import Html exposing (Attribute, Html, form, option, select, tbody, text, textarea, tr)
-import Html.Attributes exposing (attribute, checked, disabled, placeholder, property, rows, style, type_, value)
+import Html.Attributes exposing (attribute, checked, disabled, placeholder, rows, style, type_, value)
 import Html.Events exposing (onCheck, onInput, onSubmit)
-import Json.Encode
-
-
-innerHtml : String -> Attribute msg
-innerHtml html =
-    property "innerHTML" (Json.Encode.string html)
 
 
 quarterWidth =
@@ -97,7 +91,7 @@ input attributes children =
 
 fehlermeldung : String -> Html msg
 fehlermeldung fehler =
-    p (innerHtml fehler :: boldRedText) []
+    p boldRedText [ text fehler ]
 
 
 formular : msg -> String -> Bool -> List (Html msg) -> String -> String -> Html msg

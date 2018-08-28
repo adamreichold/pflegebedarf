@@ -1,7 +1,7 @@
 use rusqlite::types::ToSql;
 use rusqlite::{Connection, Result, Row, Statement, Transaction};
 
-use super::modell::{Bestellung, Pflegemittel, Posten};
+use modell::{Bestellung, Pflegemittel, Posten};
 
 trait FromRow {
     fn from_row(row: &Row) -> Self;

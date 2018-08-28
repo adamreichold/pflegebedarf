@@ -30,8 +30,9 @@ use std::io::Cursor;
 use std::sync::Mutex;
 
 use rocket::http::hyper::header::{ContentEncoding, Encoding};
-use rocket::http::ContentType;
-use rocket::response::Response;
+use rocket::http::{ContentType, Status};
+use rocket::request::Request;
+use rocket::response::{Responder, Response};
 use rocket::State;
 use rocket_contrib::Json;
 
@@ -58,7 +59,17 @@ mod errors {
     }
 }
 
-use errors::*;
+use errors::{Error, Result};
+
+impl<'r> Responder<'r> for Error {
+    fn respond_to(self, _: &Request) -> ::std::result::Result<Response<'r>, Status> {
+        Response::build()
+            .status(Status::BadRequest)
+            .header(ContentType::Plain)
+            .sized_body(Cursor::new(self.to_string()))
+            .ok()
+    }
+}
 
 fn main() {
     let conn = datenbank::schema_anlegen().expect("Konnte Datenbankschema nicht anlegen.");
