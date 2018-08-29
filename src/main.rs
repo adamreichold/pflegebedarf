@@ -123,7 +123,10 @@ fn main() -> Result<()> {
 
     chain.link_before(Write::<Database>::one(conn));
 
-    Iron::new(chain).http(("0.0.0.0", 8080))?;
+    let mut server = Iron::new(chain);
+
+    server.threads = 1;
+    server.http(("0.0.0.0", 8080))?;
 
     Ok(())
 }
