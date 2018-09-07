@@ -61,6 +61,7 @@ mod errors {
             Http(::iron::error::HttpError);
             Url(::urlencoded::UrlDecodingError);
             Body(::bodyparser::BodyError);
+            ParseInt(::std::num::ParseIntError);
         }
     }
 }
@@ -98,6 +99,8 @@ fn main() -> Result<()> {
         "neue_bestellung_anlegen",
     );
 
+    router.get("/api/anbieter", anbieter_laden, "anbieter_laden");
+
     router.get(
         "/api/pflegemittel",
         pflegemittel_laden,
@@ -108,6 +111,7 @@ fn main() -> Result<()> {
         pflegemittel_speichern,
         "pflegemittel_speichern",
     );
+
     router.get(
         "/api/bestellungen",
         bestellungen_laden,
@@ -139,6 +143,10 @@ fn neue_bestellung_anlegen(_: &mut Request) -> IronResult<Response> {
     eingebette_seite_ausliefern(include_bytes!("../ui/html/NeueBestellung.html.gz"))
 }
 
+fn anbieter_laden(req: &mut Request) -> IronResult<Response> {
+    anfrage_verarbeiten(req, |_, txn| datenbank::anbieter_laden(txn))
+}
+
 fn pflegemittel_laden(req: &mut Request) -> IronResult<Response> {
     anfrage_verarbeiten(req, |_, txn| datenbank::pflegemittel_laden(txn))
 }
@@ -158,15 +166,17 @@ fn pflegemittel_speichern(req: &mut Request) -> IronResult<Response> {
 
 fn bestellungen_laden(req: &mut Request) -> IronResult<Response> {
     anfrage_verarbeiten(req, |req, txn| {
-        let limit = parse_limit(req)?;
+        let anbieter = parse_anbieter(req)?;
+        let bis_zu = parse_bis_zu(req)?;
 
-        datenbank::bestellungen_laden(txn, limit)
+        datenbank::bestellungen_laden(txn, anbieter, bis_zu)
     })
 }
 
 fn bestellung_versenden(req: &mut Request) -> IronResult<Response> {
     anfrage_verarbeiten(req, |req, txn| {
-        let limit = parse_limit(req)?;
+        let anbieter = parse_anbieter(req)?;
+        let bis_zu = parse_bis_zu(req)?;
 
         match req.get::<Struct<modell::Bestellung>>()? {
             None => bail!("Keine Bestellung übermittelt."),
@@ -177,7 +187,7 @@ fn bestellung_versenden(req: &mut Request) -> IronResult<Response> {
             }
         }
 
-        datenbank::bestellungen_laden(txn, limit)
+        datenbank::bestellungen_laden(txn, anbieter, bis_zu)
     })
 }
 
@@ -220,17 +230,24 @@ fn anfrage_verarbeiten<T: Serialize, F: FnOnce(&mut Request, &Transaction) -> Re
     Ok(anfrage_verarbeiten1(req, f)?)
 }
 
-fn parse_limit(req: &mut Request) -> Result<Option<u32>> {
+fn parse_anbieter(req: &mut Request) -> Result<i64> {
     let params = req.get_ref::<UrlEncodedQuery>()?;
 
-    let limit = params.get("limit").and_then(|vals| {
-        vals.first()
-            .map(String::as_str)
-            .map(str::parse)
-            .and_then(|res| res.ok())
-    });
+    if let Some(vals) = params.get("anbieter") {
+        return Ok(vals.first().unwrap().parse()?);
+    }
 
-    Ok(limit)
+    Ok(0)
+}
+
+fn parse_bis_zu(req: &mut Request) -> Result<u32> {
+    let params = req.get_ref::<UrlEncodedQuery>()?;
+
+    if let Some(vals) = params.get("bis_zu") {
+        return Ok(vals.first().unwrap().parse()?);
+    }
+
+    Ok(1)
 }
 
 struct Database;

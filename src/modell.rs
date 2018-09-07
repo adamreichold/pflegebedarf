@@ -1,6 +1,13 @@
 #[derive(Clone, Serialize, Deserialize)]
+pub struct Anbieter {
+    pub id: Option<i64>,
+    pub bezeichnung: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Pflegemittel {
     pub id: Option<i64>,
+    pub anbieter_id: i64,
     pub zeitstempel: Option<i64>,
     pub bezeichnung: String,
     pub einheit: String,
@@ -15,6 +22,7 @@ pub struct Pflegemittel {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Bestellung {
     pub id: Option<i64>,
+    pub anbieter_id: i64,
     pub zeitstempel: Option<i64>,
     pub empfaenger: String,
     pub nachricht: String,

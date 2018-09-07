@@ -2,16 +2,26 @@ use rusqlite::types::ToSql;
 use rusqlite::{Connection, Row, Statement, Transaction};
 
 use errors::Result;
-use modell::{Bestellung, Pflegemittel, Posten};
+use modell::{Anbieter, Bestellung, Pflegemittel, Posten};
 
 trait FromRow {
     fn from_row(row: &Row) -> Self;
+}
+
+impl FromRow for Anbieter {
+    fn from_row(row: &Row) -> Self {
+        Self {
+            id: row.get("id"),
+            bezeichnung: row.get("bezeichnung"),
+        }
+    }
 }
 
 impl FromRow for Pflegemittel {
     fn from_row(row: &Row) -> Self {
         Self {
             id: Some(row.get("id")),
+            anbieter_id: row.get("anbieter_id"),
             zeitstempel: row.get("zeitstempel"),
             bezeichnung: row.get("bezeichnung"),
             einheit: row.get("einheit"),
@@ -29,6 +39,7 @@ impl FromRow for Bestellung {
     fn from_row(row: &Row) -> Self {
         Self {
             id: Some(row.get("id")),
+            anbieter_id: row.get("anbieter_id"),
             zeitstempel: row.get("zeitstempel"),
             empfaenger: row.get("empfaenger"),
             nachricht: row.get("nachricht"),
@@ -121,7 +132,40 @@ PRAGMA user_version = 7;
         txn.commit()?;
     }
 
+    if user_version < 8 {
+        let txn = conn.transaction()?;
+
+        txn.execute_batch(
+            r#"
+CREATE TABLE anbieter (
+    id INTEGER PRIMARY KEY,
+    bezeichnung TEXT NOT NULL
+);
+
+INSERT INTO anbieter (id, bezeichnung) VALUES (0, "nicht zutreffend");
+
+ALTER TABLE pflegemittel ADD COLUMN anbieter_id INTEGER NOT NULL DEFAULT 0 REFERENCES anbieter (id);
+
+ALTER TABLE bestellungen ADD COLUMN anbieter_id INTEGER NOT NULL DEFAULT 0 REFERENCES anbieter (id);
+
+PRAGMA user_version = 8;
+            "#,
+        )?;
+
+        txn.commit()?;
+    }
+
     Ok(conn)
+}
+
+pub fn anbieter_laden(txn: &Transaction) -> Result<Vec<Anbieter>> {
+    let mut stmt = txn.prepare(
+        r#"
+SELECT a.* FROM anbieter a
+        "#,
+    )?;
+
+    collect_rows(&mut stmt, &[])
 }
 
 pub fn pflegemittel_laden(txn: &Transaction) -> Result<Vec<Pflegemittel>> {
@@ -147,7 +191,7 @@ pub fn pflegemittel_speichern(
     zeitstempel: i64,
 ) -> Result<()> {
     let mut pm_stmt =
-        txn.prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?)")?;
+        txn.prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?)")?;
 
     let mut pmb_stmt = txn.prepare("INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)")?;
 
@@ -160,6 +204,7 @@ pub fn pflegemittel_speichern(
             &pm.pzn_oder_ref,
             &pm.wird_verwendet,
             &pm.wurde_gezaehlt,
+            &pm.anbieter_id,
         ])?;
 
         pm.id = Some(txn.last_insert_rowid());
@@ -176,15 +221,17 @@ pub fn pflegemittel_speichern(
     Ok(())
 }
 
-pub fn bestellungen_laden(txn: &Transaction, limit: Option<u32>) -> Result<Vec<Bestellung>> {
-    let limit = limit.unwrap_or(1);
-
+pub fn bestellungen_laden(
+    txn: &Transaction,
+    anbieter: i64,
+    bis_zu: u32,
+) -> Result<Vec<Bestellung>> {
     let mut b_stmt =
-        txn.prepare("SELECT b.* FROM bestellungen b ORDER BY b.zeitstempel DESC LIMIT ?")?;
+        txn.prepare("SELECT b.* FROM bestellungen b WHERE b.anbieter_id = ? ORDER BY b.zeitstempel DESC LIMIT ?")?;
 
     let mut bp_stmt = txn.prepare("SELECT bp.pflegemittel_id, bp.menge FROM bestellungen_posten bp WHERE bp.bestellung_id = ?")?;
 
-    let mut bestellungen: Vec<Bestellung> = collect_rows(&mut b_stmt, &[&limit])?;
+    let mut bestellungen: Vec<Bestellung> = collect_rows(&mut b_stmt, &[&anbieter, &bis_zu])?;
 
     for mut bestellung in &mut bestellungen {
         bestellung.posten = collect_rows(&mut bp_stmt, &[&bestellung.id])?;
@@ -198,7 +245,7 @@ pub fn bestellung_speichern(
     mut bestellung: Bestellung,
     zeitstempel: i64,
 ) -> Result<Bestellung> {
-    let mut b_stmt = txn.prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?)")?;
+    let mut b_stmt = txn.prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?, ?)")?;
 
     let mut bp_stmt = txn.prepare("INSERT INTO bestellungen_posten VALUES (?, ?, ?)")?;
 
@@ -210,6 +257,7 @@ pub fn bestellung_speichern(
         &bestellung.zeitstempel,
         &bestellung.empfaenger,
         &bestellung.nachricht,
+        &bestellung.anbieter_id,
     ])?;
 
     bestellung.id = Some(txn.last_insert_rowid());

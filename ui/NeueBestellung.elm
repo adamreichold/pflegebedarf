@@ -102,7 +102,7 @@ neueBestellungAnlegen pflegemittel letzteBestellung =
         posten =
             List.map neuerPosten <| List.map .id pflegemittel
     in
-    Bestellung 0 empfaenger nachricht posten
+    Bestellung 0 0 empfaenger nachricht posten
 
 
 bestellungenAuswerten : Model -> List Bestellung -> Model

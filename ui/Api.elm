@@ -4,10 +4,18 @@ import Http
 import Json.Decode as Decode
 import Json.Decode.Extra exposing (andMap)
 import Json.Encode as Encode
+import Url.Builder as Url
+
+
+type alias Anbieter =
+    { id : Int
+    , bezeichnung : String
+    }
 
 
 type alias Pflegemittel =
     { id : Int
+    , anbieterId : Int
     , bezeichnung : String
     , einheit : String
     , herstellerUndProdukt : String
@@ -27,6 +35,7 @@ type alias BestellungPosten =
 
 type alias Bestellung =
     { id : Int
+    , anbieterId : Int
     , empfaenger : String
     , nachricht : String
     , posten : List BestellungPosten
@@ -46,6 +55,7 @@ decodePflegemittel : Decode.Decoder Pflegemittel
 decodePflegemittel =
     Decode.succeed Pflegemittel
         |> andMap (Decode.field "id" Decode.int)
+        |> andMap (Decode.field "anbieter_id" Decode.int)
         |> andMap (Decode.field "bezeichnung" Decode.string)
         |> andMap (Decode.field "einheit" Decode.string)
         |> andMap (Decode.field "hersteller_und_produkt" Decode.string)
@@ -60,6 +70,7 @@ encodePflegemittel : Pflegemittel -> Encode.Value
 encodePflegemittel pflegemittel =
     Encode.object
         [ ( "id", encodeId pflegemittel.id )
+        , ( "anbieter_id", Encode.int pflegemittel.anbieterId )
         , ( "bezeichnung", Encode.string pflegemittel.bezeichnung )
         , ( "einheit", Encode.string pflegemittel.einheit )
         , ( "hersteller_und_produkt", Encode.string pflegemittel.herstellerUndProdukt )
@@ -88,8 +99,9 @@ encodeBestellungPosten posten =
 
 decodeBestellung : Decode.Decoder Bestellung
 decodeBestellung =
-    Decode.map4 Bestellung
+    Decode.map5 Bestellung
         (Decode.field "id" Decode.int)
+        (Decode.field "anbieter_id" Decode.int)
         (Decode.field "empfaenger" Decode.string)
         (Decode.field "nachricht" Decode.string)
         (Decode.field "posten" (Decode.list decodeBestellungPosten))
@@ -99,6 +111,7 @@ encodeBestellung : Bestellung -> Encode.Value
 encodeBestellung bestellung =
     Encode.object
         [ ( "id", encodeId bestellung.id )
+        , ( "anbieter_id", Encode.int bestellung.anbieterId )
         , ( "empfaenger", Encode.string bestellung.empfaenger )
         , ( "nachricht", Encode.string bestellung.nachricht )
         , ( "posten", Encode.list encodeBestellungPosten bestellung.posten )
@@ -151,7 +164,7 @@ pflegemittelLaden : (Result String (List Pflegemittel) -> msg) -> Cmd msg
 pflegemittelLaden msg =
     let
         url =
-            "/api/pflegemittel"
+            Url.absolute [ "api", "pflegemittel" ] []
 
         decoder =
             Decode.list decodePflegemittel
@@ -163,7 +176,7 @@ pflegemittelSpeichern : (Result String (List Pflegemittel) -> msg) -> List Pfleg
 pflegemittelSpeichern msg pflegemittel =
     let
         url =
-            "/api/pflegemittel"
+            Url.absolute [ "api", "pflegemittel" ] []
 
         decoder =
             Decode.list decodePflegemittel
@@ -178,7 +191,7 @@ bestellungenLaden : (Result String (List Bestellung) -> msg) -> Cmd msg
 bestellungenLaden msg =
     let
         url =
-            "/api/bestellungen?limit=3"
+            Url.absolute [ "api", "bestellungen" ] [ Url.int "bis_zu" 3 ]
 
         decoder =
             Decode.list decodeBestellung
@@ -190,7 +203,7 @@ neueBestellungSpeichern : (Result String (List Bestellung) -> msg) -> Bestellung
 neueBestellungSpeichern msg bestellung =
     let
         url =
-            "/api/bestellungen?limit=3"
+            Url.absolute [ "api", "bestellungen" ] [ Url.int "bis_zu" 3 ]
 
         decoder =
             Decode.list decodeBestellung

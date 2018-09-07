@@ -63,7 +63,7 @@ pflegemittelAuswerten : Model -> List Pflegemittel -> Model
 pflegemittelAuswerten model pflegemittel =
     let
         mitNeuemPflegemittel =
-            pflegemittel ++ [ Pflegemittel 0 "" "" "" "" 0 0 True False ]
+            pflegemittel ++ [ Pflegemittel 0 0 "" "" "" "" 0 0 True False ]
     in
     { model
         | pflegemittel = mitNeuemPflegemittel
