@@ -1,10 +1,8 @@
 #![recursion_limit = "1024"]
 
-extern crate bodyparser;
-extern crate iron;
-extern crate persistent;
-extern crate router;
-extern crate urlencoded;
+extern crate futures;
+extern crate hyper;
+extern crate url;
 
 extern crate serde;
 #[macro_use]
@@ -17,21 +15,22 @@ extern crate lettre_email;
 extern crate rusqlite;
 
 extern crate time;
-
 #[macro_use]
 extern crate error_chain;
 
-use bodyparser::Struct;
-use iron::headers::{ContentEncoding, ContentType, Encoding};
-use iron::prelude::*;
-use iron::status::Status;
-use iron::typemap::Key;
-use persistent::Write;
-use router::Router;
-use urlencoded::UrlEncodedQuery;
+use std::num::ParseIntError;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
-use serde_json::to_vec;
+use futures::future::{ok, Future};
+use futures::stream::Stream;
+use hyper::header::{CONTENT_ENCODING, CONTENT_TYPE};
+use hyper::service::service_fn;
+use hyper::{Body, Error, Method, Request, Response, Server, StatusCode, Uri};
+use url::form_urlencoded::parse;
+
+use serde::{de::DeserializeOwned, ser::Serialize};
+use serde_json::{from_slice, to_vec};
 
 use rusqlite::{Connection, Transaction};
 
@@ -48,204 +47,185 @@ mod errors {
     error_chain! {
         foreign_links {
             Io(::std::io::Error);
+            ParseInt(::std::num::ParseIntError);
             SQLite(::rusqlite::Error);
-            Json(::serde_json::Error);
+            SerdeJson(::serde_json::Error);
             LettreSmtp(::lettre::smtp::error::Error);
             LettreEmail(::lettre_email::error::Error);
-            Http(::iron::error::HttpError);
-            Url(::urlencoded::UrlDecodingError);
-            Body(::bodyparser::BodyError);
-            ParseInt(::std::num::ParseIntError);
         }
     }
 }
 
-use errors::{Error, Result};
-
-impl From<Error> for ::iron::error::IronError {
-    fn from(err: Error) -> Self {
-        let mut resp = ::iron::Response::new();
-
-        resp.status = Some(Status::BadRequest);
-        resp.headers.set(ContentType::plaintext());
-        resp.body = Some(Box::new(err.to_string()));
-
-        Self {
-            error: Box::new(err),
-            response: resp,
-        }
-    }
-}
+use errors::Result;
 
 fn main() -> Result<()> {
-    let conn = datenbank::schema_anlegen()?;
+    let conn = Arc::new(Mutex::new(datenbank::schema_anlegen()?));
 
-    let mut router = Router::new();
+    let service = move || {
+        let conn = conn.clone();
 
-    router.get(
-        "/ui/Pflegemittel",
-        pflegemittel_anzeigen,
-        "pflegemittel_anzeigen",
-    );
-    router.get(
-        "/ui/NeueBestellung",
-        neue_bestellung_anlegen,
-        "neue_bestellung_anlegen",
-    );
+        service_fn(move |req| match (req.method(), req.uri().path()) {
+            (&Method::GET, "/ui/Pflegemittel") => pflegemittel_anzeigen(),
+            (&Method::GET, "/ui/NeueBestellung") => neue_bestellung_anlegen(),
 
-    router.get("/api/anbieter", anbieter_laden, "anbieter_laden");
+            (&Method::GET, "/api/anbieter") => anbieter_laden(req.uri(), &conn),
 
-    router.get(
-        "/api/pflegemittel",
-        pflegemittel_laden,
-        "pflegemittel_laden",
-    );
-    router.post(
-        "/api/pflegemittel",
-        pflegemittel_speichern,
-        "pflegemittel_speichern",
-    );
+            (&Method::GET, "/api/pflegemittel") => pflegemittel_laden(req.uri(), &conn),
+            (&Method::POST, "/api/pflegemittel") => pflegemittel_speichern(req, conn.clone()),
 
-    router.get(
-        "/api/bestellungen",
-        bestellungen_laden,
-        "bestellungen_laden",
-    );
-    router.post(
-        "/api/bestellungen",
-        bestellung_versenden,
-        "bestellungen_versenden",
-    );
+            (&Method::GET, "/api/bestellungen") => bestellungen_laden(req.uri(), &conn),
+            (&Method::POST, "/api/bestellungen") => bestellung_versenden(req, conn.clone()),
 
-    let mut chain = Chain::new(router);
+            _ => Box::new(ok(Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(CONTENT_TYPE, "text/plain")
+                .body("Method or path not found.".into())
+                .unwrap())),
+        })
+    };
 
-    chain.link_before(Write::<Database>::one(conn));
+    let server = Server::bind(&([0, 0, 0, 0], 8080).into())
+        .serve(service)
+        .map_err(|err| eprintln!("Server error: {}", err));
 
-    let mut server = Iron::new(chain);
-
-    server.threads = 1;
-    server.http(("0.0.0.0", 8080))?;
+    hyper::rt::run(server);
 
     Ok(())
 }
 
-fn pflegemittel_anzeigen(_: &mut Request) -> IronResult<Response> {
+type Antwort = Box<Future<Item = Response<Body>, Error = Error> + Send>;
+
+fn pflegemittel_anzeigen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../ui/html/Pflegemittel.html.gz"))
 }
 
-fn neue_bestellung_anlegen(_: &mut Request) -> IronResult<Response> {
+fn neue_bestellung_anlegen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../ui/html/NeueBestellung.html.gz"))
 }
 
-fn anbieter_laden(req: &mut Request) -> IronResult<Response> {
-    anfrage_verarbeiten(req, |_, txn| datenbank::anbieter_laden(txn))
+fn anbieter_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
+    anfrage_verarbeiten(uri, conn, |_, txn| datenbank::anbieter_laden(txn))
 }
 
-fn pflegemittel_laden(req: &mut Request) -> IronResult<Response> {
-    anfrage_verarbeiten(req, |_, txn| datenbank::pflegemittel_laden(txn))
+fn pflegemittel_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
+    anfrage_verarbeiten(uri, conn, |_, txn| datenbank::pflegemittel_laden(txn))
 }
 
-fn pflegemittel_speichern(req: &mut Request) -> IronResult<Response> {
-    anfrage_verarbeiten(req, |req, txn| {
-        match req.get::<Struct<Vec<modell::Pflegemittel>>>()? {
-            None => bail!("Keine Pflegemittel übertragen."),
-            Some(pflegemittel) => {
-                datenbank::pflegemittel_speichern(txn, pflegemittel, get_time().sec)?;
-            }
-        }
-
+fn pflegemittel_speichern(req: Request<Body>, conn: Arc<Mutex<Connection>>) -> Antwort {
+    anfrage_mit_objekt_verarbeiten(req, conn, |_, pflegemittel, txn| {
+        datenbank::pflegemittel_speichern(txn, pflegemittel, get_time().sec)?;
         datenbank::pflegemittel_laden(txn)
     })
 }
 
-fn bestellungen_laden(req: &mut Request) -> IronResult<Response> {
-    anfrage_verarbeiten(req, |req, txn| {
-        let anbieter = parse_anbieter(req)?;
-        let bis_zu = parse_bis_zu(req)?;
+fn bestellungen_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
+    anfrage_verarbeiten(uri, conn, |uri, txn| {
+        let anbieter = parse_anbieter(uri)?;
+        let bis_zu = parse_bis_zu(uri)?;
 
         datenbank::bestellungen_laden(txn, anbieter, bis_zu)
     })
 }
 
-fn bestellung_versenden(req: &mut Request) -> IronResult<Response> {
-    anfrage_verarbeiten(req, |req, txn| {
-        let anbieter = parse_anbieter(req)?;
-        let bis_zu = parse_bis_zu(req)?;
+fn bestellung_versenden(req: Request<Body>, conn: Arc<Mutex<Connection>>) -> Antwort {
+    anfrage_mit_objekt_verarbeiten(req, conn, |uri, bestellung, txn| {
+        let anbieter = parse_anbieter(uri)?;
+        let bis_zu = parse_bis_zu(uri)?;
 
-        match req.get::<Struct<modell::Bestellung>>()? {
-            None => bail!("Keine Bestellung übermittelt."),
-            Some(bestellung) => {
-                let bestellung = datenbank::bestellung_speichern(txn, bestellung, get_time().sec)?;
+        let bestellung = datenbank::bestellung_speichern(txn, bestellung, get_time().sec)?;
+        versenden::bestellung_versenden(txn, bestellung)?;
+        datenbank::bestellungen_laden(txn, anbieter, bis_zu)
+    })
+}
 
-                versenden::bestellung_versenden(txn, bestellung)?;
+fn eingebette_seite_ausliefern(body: &'static [u8]) -> Antwort {
+    Box::new(ok(Response::builder()
+        .header(CONTENT_TYPE, "text/html")
+        .header(CONTENT_ENCODING, "gzip")
+        .body(body.into())
+        .unwrap()))
+}
+
+fn anfrage_verarbeiten<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Result<T>>(
+    uri: &Uri,
+    conn: &Mutex<Connection>,
+    handler: H,
+) -> Antwort {
+    Box::new(ok(fehler_behandeln(in_transaktion_ausfuehren(
+        uri, conn, handler,
+    ))))
+}
+
+fn anfrage_mit_objekt_verarbeiten<
+    S: DeserializeOwned,
+    T: Serialize,
+    H: 'static + Send + FnOnce(&Uri, S, &Transaction) -> Result<T>,
+>(
+    req: Request<Body>,
+    conn: Arc<Mutex<Connection>>,
+    handler: H,
+) -> Antwort {
+    let (parts, body) = req.into_parts();
+
+    Box::new(body.concat2().and_then(move |body| {
+        ok(fehler_behandeln(in_transaktion_ausfuehren(
+            &parts.uri,
+            &conn,
+            move |uri, txn| handler(uri, from_slice(body.as_ref())?, txn),
+        )))
+    }))
+}
+
+fn in_transaktion_ausfuehren<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Result<T>>(
+    uri: &Uri,
+    conn: &Mutex<Connection>,
+    handler: H,
+) -> Result<Response<Body>> {
+    let mut conn = conn.lock().unwrap();
+    let txn = conn.transaction()?;
+
+    let body = to_vec(&handler(uri, &txn)?)?;
+
+    txn.commit()?;
+
+    Ok(Response::builder()
+        .header(CONTENT_TYPE, "application/json")
+        .body(body.into())
+        .unwrap())
+}
+
+fn fehler_behandeln(resp: Result<Response<Body>>) -> Response<Body> {
+    match resp {
+        Ok(resp) => resp,
+
+        Err(err) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header(CONTENT_TYPE, "text/plain")
+            .body(err.to_string().into())
+            .unwrap(),
+    }
+}
+
+fn parse_anbieter(uri: &Uri) -> Result<i64> {
+    parse_param(uri, "anbieter", 0)
+}
+
+fn parse_bis_zu(uri: &Uri) -> Result<u32> {
+    parse_param(uri, "bis_zu", 1)
+}
+
+fn parse_param<T: FromStr<Err = ParseIntError>>(
+    uri: &Uri,
+    param: &'static str,
+    def_val: T,
+) -> Result<T> {
+    if let Some(query) = uri.query() {
+        for (key, val) in parse(query.as_bytes()) {
+            if key == param {
+                return Ok(val.parse()?);
             }
         }
-
-        datenbank::bestellungen_laden(txn, anbieter, bis_zu)
-    })
-}
-
-fn eingebette_seite_ausliefern(body: &'static [u8]) -> IronResult<Response> {
-    let mut resp = Response::new();
-
-    resp.status = Some(Status::Ok);
-    resp.body = Some(Box::new(body));
-    resp.headers.set(ContentType::html());
-    resp.headers.set(ContentEncoding(vec![Encoding::Gzip]));
-
-    Ok(resp)
-}
-
-fn anfrage_verarbeiten<T: Serialize, F: FnOnce(&mut Request, &Transaction) -> Result<T>>(
-    req: &mut Request,
-    f: F,
-) -> IronResult<Response> {
-    fn anfrage_verarbeiten1<T1: Serialize, F1: FnOnce(&mut Request, &Transaction) -> Result<T1>>(
-        req: &mut Request,
-        f: F1,
-    ) -> Result<Response> {
-        let db = req.get::<Write<Database>>().unwrap();
-        let mut conn = db.lock().unwrap();
-        let txn = conn.transaction()?;
-
-        let t = f(req, &txn)?;
-
-        txn.commit()?;
-
-        let mut resp = Response::new();
-
-        resp.status = Some(Status::Ok);
-        resp.body = Some(Box::new(to_vec(&t)?));
-        resp.headers.set(ContentType::json());
-
-        Ok(resp)
     }
 
-    Ok(anfrage_verarbeiten1(req, f)?)
-}
-
-fn parse_anbieter(req: &mut Request) -> Result<i64> {
-    let params = req.get_ref::<UrlEncodedQuery>()?;
-
-    if let Some(vals) = params.get("anbieter") {
-        return Ok(vals.first().unwrap().parse()?);
-    }
-
-    Ok(0)
-}
-
-fn parse_bis_zu(req: &mut Request) -> Result<u32> {
-    let params = req.get_ref::<UrlEncodedQuery>()?;
-
-    if let Some(vals) = params.get("bis_zu") {
-        return Ok(vals.first().unwrap().parse()?);
-    }
-
-    Ok(1)
-}
-
-struct Database;
-
-impl Key for Database {
-    type Value = Connection;
+    Ok(def_val)
 }
