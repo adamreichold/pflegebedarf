@@ -22,10 +22,6 @@ extern crate time;
 #[macro_use]
 extern crate error_chain;
 
-extern crate regex;
-#[macro_use]
-extern crate lazy_static;
-
 use bodyparser::Struct;
 use iron::headers::{ContentEncoding, ContentType, Encoding};
 use iron::prelude::*;

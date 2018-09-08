@@ -12,8 +12,6 @@ use rusqlite::Transaction;
 
 use time::{at, strftime, Timespec};
 
-use regex::Regex;
-
 use datenbank::posten_laden;
 use errors::{Result, ResultExt};
 use modell::{Bestellung, Posten};
@@ -113,12 +111,17 @@ fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Result<String> 
 }
 
 fn parse_mailbox(mbox: String) -> Mailbox {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r#"([^<]+)<([^>]+)>"#).unwrap();
-    }
+    if let Some(begin) = mbox.find('<') {
+        if let Some(end) = mbox.rfind('>') {
+            if begin < end {
+                let name = mbox[..begin].trim();
+                let addr = mbox[begin + 1..end].trim();
 
-    if let Some(caps) = RE.captures(&mbox) {
-        return Mailbox::new_with_name(caps[1].trim().to_string(), caps[2].trim().to_string());
+                if !name.is_empty() && !addr.is_empty() {
+                    return Mailbox::new_with_name(name.to_string(), addr.to_string());
+                }
+            }
+        }
     }
 
     Mailbox::new(mbox)
