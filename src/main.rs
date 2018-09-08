@@ -10,7 +10,6 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate serde_yaml;
 
 extern crate lettre;
 extern crate lettre_email;
@@ -51,7 +50,6 @@ mod errors {
             Io(::std::io::Error);
             SQLite(::rusqlite::Error);
             Json(::serde_json::Error);
-            Yaml(::serde_yaml::Error);
             LettreSmtp(::lettre::smtp::error::Error);
             LettreEmail(::lettre_email::error::Error);
             Http(::iron::error::HttpError);

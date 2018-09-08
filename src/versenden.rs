@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::fs::File;
 
-use serde_yaml::from_reader;
+use serde_json::from_reader;
 
 use lettre::smtp::authentication::Credentials;
 use lettre::smtp::SmtpTransport;
@@ -37,7 +37,7 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
         return Err("Die Nachricht muss den Platzhalter {posten} enthalten.".into());
     }
 
-    let config: Config = from_reader(File::open("versenden.yaml")?)?;
+    let config: Config = from_reader(File::open("versenden.json")?)?;
 
     let datum = strftime(
         "%d.%m.%Y",
@@ -130,6 +130,37 @@ fn parse_mailbox(mbox: String) -> Mailbox {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use serde_json::from_str;
+
+    #[test]
+    fn check_config_format() {
+        let config: Config = from_str(
+            r#"{
+    "smtp": {
+        "domain": "smtp.foobar.org",
+        "username": "foo",
+        "password": "bar"
+    },
+    "betreff": "foobar",
+    "von": "foo",
+    "antwort": "bar",
+    "kopien": [
+        "foo",
+        "bar"
+    ]
+}"#,
+        ).unwrap();
+
+        assert_eq!("smtp.foobar.org", config.smtp.domain);
+        assert_eq!("foo", config.smtp.username);
+        assert_eq!("bar", config.smtp.password);
+
+        assert_eq!("foobar", config.betreff);
+        assert_eq!("foo", config.von);
+        assert_eq!("bar", config.antwort);
+        assert_eq!(["foo", "bar"], &config.kopien[..]);
+    }
 
     #[test]
     fn check_mailbox_without_alias() {

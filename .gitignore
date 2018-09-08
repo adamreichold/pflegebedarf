@@ -5,4 +5,4 @@ Cargo.lock
 /ui/elm-stuff/
 /ui/html/
 datenbank.sqlite
-versenden.yaml
+versenden.json
