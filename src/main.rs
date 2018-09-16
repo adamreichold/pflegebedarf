@@ -97,11 +97,11 @@ fn main() -> Result<()> {
 type Antwort = Box<Future<Item = Response<Body>, Error = Error> + Send>;
 
 fn pflegemittel_anzeigen() -> Antwort {
-    eingebette_seite_ausliefern(include_bytes!("../ui/html/Pflegemittel.html.gz"))
+    eingebette_seite_ausliefern(include_bytes!("../target/html/Pflegemittel.html.gz"))
 }
 
 fn neue_bestellung_anlegen() -> Antwort {
-    eingebette_seite_ausliefern(include_bytes!("../ui/html/NeueBestellung.html.gz"))
+    eingebette_seite_ausliefern(include_bytes!("../target/html/NeueBestellung.html.gz"))
 }
 
 fn anbieter_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {

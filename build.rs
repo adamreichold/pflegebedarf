@@ -16,11 +16,10 @@ fn main() -> Result<()> {
 
     for module in MODULES {
         let compiled = Command::new("node_modules/elm/bin/elm")
-            .current_dir("ui")
             .arg("make")
             .arg("--optimize")
-            .arg(&format!("--output=html/{}.html", module))
-            .arg(&format!("{}.elm", module))
+            .arg(&format!("--output=target/html/{}.html", module))
+            .arg(&format!("src/{}.elm", module))
             .status()?;
 
         if !compiled.success() {
@@ -30,11 +29,10 @@ fn main() -> Result<()> {
 
     MODULES.par_iter().map(|module| {
         let minified = Command::new("node")
-            .current_dir("ui")
             .arg("node_modules/html-minifier/cli.js")
             .arg("--minify-js")
             .arg(r#"{"compress":{"pure_funcs":["F2","F3","F4","F5","F6","F7","F8","F9","A2","A3","A4","A5","A6","A7","A8","A9"],"pure_getters":true,"keep_fargs":false,"unsafe_comps":true,"unsafe":true}}"#)
-            .arg(&format!("html/{}.html", module))
+            .arg(&format!("target/html/{}.html", module))
             .output()?;
 
         if !minified.status.success() {
@@ -42,19 +40,19 @@ fn main() -> Result<()> {
         }
 
         let mut compressed =
-            GzEncoder::new(File::create(format!("ui/html/{}.html.gz", module))?, Compression::best());
+            GzEncoder::new(File::create(format!("target/html/{}.html.gz", module))?, Compression::best());
         compressed.write_all(&minified.stdout)?;
         compressed.finish()?;
 
         Ok(())
     }).find_any(Result::is_err).unwrap_or(Ok(()))?;
 
-    for entry in read_dir("ui")? {
+    for entry in read_dir("src")? {
         let file_name = entry?.file_name();
 
         if file_name.as_bytes().ends_with(b".elm") {
             let mut stdout = stdout();
-            stdout.write(b"cargo:rerun-if-changed=ui/")?;
+            stdout.write(b"cargo:rerun-if-changed=src/")?;
             stdout.write(file_name.as_bytes())?;
             stdout.write(b"\n")?;
         }
