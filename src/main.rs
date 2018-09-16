@@ -34,6 +34,7 @@ use serde_json::{from_slice, to_vec};
 
 use rusqlite::{Connection, Transaction};
 
+use error_chain::ChainedError;
 use time::get_time;
 
 mod datenbank;
@@ -198,11 +199,15 @@ fn fehler_behandeln(resp: Result<Response<Body>>) -> Response<Body> {
     match resp {
         Ok(resp) => resp,
 
-        Err(err) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(err.to_string().into())
-            .unwrap(),
+        Err(err) => {
+            eprintln!("{}", err.display_chain());
+
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header(CONTENT_TYPE, "text/plain")
+                .body(err.to_string().into())
+                .unwrap()
+        }
     }
 }
 
