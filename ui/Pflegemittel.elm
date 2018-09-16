@@ -1,10 +1,10 @@
 module Pflegemittel exposing (main)
 
-import Api exposing (Pflegemittel, pflegemittelLaden, pflegemittelSpeichern)
+import Api exposing (Anbieter, Pflegemittel, anbieterLaden, pflegemittelLaden, pflegemittelSpeichern)
 import Browser
 import Dict exposing (Dict)
 import Html exposing (Attribute, Html)
-import Ui exposing (ankreuzfeld, formular, optionsfeld, p, tabelle, textfeld, versteckt, zahlenfeld, zentrierteElemente)
+import Ui exposing (ankreuzfeld, auswahlfeld, formular, optionsfeld, p, tabelle, textfeld, versteckt, zahlenfeld, zentrierteElemente)
 
 
 main =
@@ -19,6 +19,7 @@ main =
 type alias Model =
     { pflegemittel : List Pflegemittel
     , urspruenglichePflegemittel : List Pflegemittel
+    , anbieter : List Anbieter
     , ungueltigeVerbraeuche : Dict Int String
     , ungueltigeMengen : Dict Int String
     , wirdGespeichert : Bool
@@ -31,6 +32,8 @@ type alias Model =
 
 type Msg
     = PflegemittelLaden (Result String (List Pflegemittel))
+    | AnbieterLaden (Result String (List Anbieter))
+    | AnbieterAendern Int String
     | BezeichnungAendern Int String
     | EinheitAendern Int String
     | HerstellerUndProduktAendern Int String
@@ -69,6 +72,20 @@ pflegemittelAuswerten model pflegemittel =
         | pflegemittel = mitNeuemPflegemittel
         , urspruenglichePflegemittel = mitNeuemPflegemittel
     }
+
+
+anbieterAendern : Model -> Int -> String -> Model
+anbieterAendern model id neueAnbieterId =
+    case String.toInt neueAnbieterId of
+        Just anbieterId ->
+            let
+                pflegemittel =
+                    eigenschaftAendern model.pflegemittel id <| \val -> { val | anbieterId = anbieterId }
+            in
+            { model | pflegemittel = pflegemittel }
+
+        Nothing ->
+            model
 
 
 geplanterVerbrauchAendern : Model -> Int -> String -> Model
@@ -111,8 +128,8 @@ geaendertePflegemittel model =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model [] [] Dict.empty Dict.empty False True False "" ""
-    , pflegemittelLaden PflegemittelLaden
+    ( Model [] [] [] Dict.empty Dict.empty False True False "" ""
+    , anbieterLaden AnbieterLaden
     )
 
 
@@ -124,6 +141,15 @@ update msg model =
 
         PflegemittelLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
+
+        AnbieterLaden (Ok anbieter) ->
+            ( { model | anbieter = anbieter }, pflegemittelLaden PflegemittelLaden )
+
+        AnbieterLaden (Err err) ->
+            ( { model | letzterFehler = err }, Cmd.none )
+
+        AnbieterAendern id anbieterId ->
+            ( anbieterAendern model id anbieterId, Cmd.none )
 
         BezeichnungAendern id bezeichnung ->
             ( { model | pflegemittel = eigenschaftAendern model.pflegemittel id <| \val -> { val | bezeichnung = bezeichnung } }, Cmd.none )
@@ -176,7 +202,7 @@ view model =
             not model.wirdGespeichert && Dict.isEmpty model.ungueltigeVerbraeuche && Dict.isEmpty model.ungueltigeMengen
 
         inhalt =
-            [ pflegemittelTabelle model.pflegemittel model.ungueltigeVerbraeuche model.ungueltigeMengen model.nurVerwendeteZeigen model.nurUngezaehlteZeigen
+            [ pflegemittelTabelle model.pflegemittel model.anbieter model.ungueltigeVerbraeuche model.ungueltigeMengen model.nurVerwendeteZeigen model.nurUngezaehlteZeigen
             , p zentrierteElemente <|
                 []
                     ++ optionsfeld "Nur verwendete zeigen" model.nurVerwendeteZeigen NurVerwendeteZeigenAendern
@@ -186,23 +212,26 @@ view model =
     formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
-pflegemittelTabelle : List Pflegemittel -> Dict Int String -> Dict Int String -> Bool -> Bool -> Html Msg
-pflegemittelTabelle allePflegemittel ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen =
+pflegemittelTabelle : List Pflegemittel -> List Anbieter -> Dict Int String -> Dict Int String -> Bool -> Bool -> Html Msg
+pflegemittelTabelle allePflegemittel alleAnbieter ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen =
     let
         ueberschriften =
-            [ "Bezeichnung", "Einheit", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
+            [ "Bezeichnung", "Einheit", "Anbieter", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
+
+        anbieterBezeichnungen =
+            List.map (\anbieter -> ( String.fromInt anbieter.id, anbieter.bezeichnung )) alleAnbieter
 
         filter =
             \pflegemittel -> pflegemittel.id == 0 || ((not nurVerwendeteZeigen || pflegemittel.wirdVerwendet) && (not nurUngezaehlteZeigen || not pflegemittel.wurdeGezaehlt))
 
         zeile =
-            \pflegemittel -> pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter
+            \pflegemittel -> pflegemittelZeile pflegemittel anbieterBezeichnungen ungueltigeVerbraeuche ungueltigeMengen filter
     in
     tabelle ueberschriften <| List.map zeile allePflegemittel
 
 
-pflegemittelZeile : Pflegemittel -> Dict Int String -> Dict Int String -> (Pflegemittel -> Bool) -> ( List (Attribute Msg), List (Html Msg) )
-pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter =
+pflegemittelZeile : Pflegemittel -> List ( String, String ) -> Dict Int String -> Dict Int String -> (Pflegemittel -> Bool) -> ( List (Attribute Msg), List (Html Msg) )
+pflegemittelZeile pflegemittel anbieterBezeichnungen ungueltigeVerbraeuche ungueltigeMengen filter =
     let
         geplanterVerbrauch =
             Maybe.withDefault
@@ -214,6 +243,9 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter =
                 (String.fromInt <| pflegemittel.vorhandeneMenge)
                 (Dict.get pflegemittel.id ungueltigeMengen)
 
+        anbieterId =
+            String.fromInt pflegemittel.anbieterId
+
         gefiltert =
             if filter pflegemittel then
                 []
@@ -224,6 +256,7 @@ pflegemittelZeile pflegemittel ungueltigeVerbraeuche ungueltigeMengen filter =
     ( gefiltert
     , [ textfeld pflegemittel.bezeichnung <| BezeichnungAendern pflegemittel.id
       , textfeld pflegemittel.einheit <| EinheitAendern pflegemittel.id
+      , auswahlfeld anbieterBezeichnungen anbieterId <| AnbieterAendern pflegemittel.id
       , textfeld pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
       , textfeld pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
       , zahlenfeld "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id

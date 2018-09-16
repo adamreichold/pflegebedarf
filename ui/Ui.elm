@@ -1,7 +1,7 @@
 module Ui exposing (ankreuzfeld, auswahlfeld, emailfeld, fehlermeldung, formular, optionsfeld, p, tabelle, textbereich, textfeld, versteckt, zahlenfeld, zentrierteElemente)
 
 import Html exposing (Attribute, Html, form, option, select, tbody, text, textarea, tr)
-import Html.Attributes exposing (attribute, checked, disabled, placeholder, rows, style, type_, value)
+import Html.Attributes exposing (checked, disabled, placeholder, rows, selected, style, type_, value)
 import Html.Events exposing (onCheck, onInput, onSubmit)
 
 
@@ -149,13 +149,13 @@ ankreuzfeld checked_ onCheck_ =
     input [ type_ "checkbox", checked checked_, onCheck onCheck_, largeWidth ] []
 
 
-auswahlfeld : List ( String, String ) -> (String -> msg) -> Html msg
-auswahlfeld options onInput_ =
+auswahlfeld : List ( String, String ) -> String -> (String -> msg) -> Html msg
+auswahlfeld options selected_ onInput_ =
     let
         optionItem =
-            \( value_, text_ ) -> option [ attribute "value" value_ ] [ text text_ ]
+            \( value_, text_ ) -> option ([ value value_ ] ++ [ selected <| value_ == selected_ ]) [ text text_ ]
     in
-    select [ onInput onInput_, quarterWidth, largeHeight ] <| List.map optionItem options
+    select [ onInput onInput_, largeHeight ] <| List.map optionItem options
 
 
 optionsfeld : String -> Bool -> (Bool -> msg) -> List (Html msg)

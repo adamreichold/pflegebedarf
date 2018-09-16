@@ -1,4 +1,4 @@
-module Api exposing (Bestellung, BestellungPosten, Pflegemittel, bestellungenLaden, neueBestellungSpeichern, pflegemittelLaden, pflegemittelSpeichern)
+module Api exposing (Anbieter, Bestellung, BestellungPosten, Pflegemittel, anbieterLaden, bestellungenLaden, neueBestellungSpeichern, pflegemittelLaden, pflegemittelSpeichern)
 
 import Http
 import Json.Decode as Decode
@@ -49,6 +49,13 @@ encodeId id =
 
     else
         Encode.null
+
+
+decodeAnbieter : Decode.Decoder Anbieter
+decodeAnbieter =
+    Decode.map2 Anbieter
+        (Decode.field "id" Decode.int)
+        (Decode.field "bezeichnung" Decode.string)
 
 
 decodePflegemittel : Decode.Decoder Pflegemittel
@@ -158,6 +165,18 @@ objektSpeichern msg url decoder encoder objekt =
             Http.jsonBody <| encoder objekt
     in
     Http.send (msg << fehlerBehandeln) (Http.post url body decoder)
+
+
+anbieterLaden : (Result String (List Anbieter) -> msg) -> Cmd msg
+anbieterLaden msg =
+    let
+        url =
+            Url.absolute [ "api", "anbieter" ] []
+
+        decoder =
+            Decode.list decodeAnbieter
+    in
+    objektLaden msg url decoder
 
 
 pflegemittelLaden : (Result String (List Pflegemittel) -> msg) -> Cmd msg
