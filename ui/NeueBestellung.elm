@@ -1,10 +1,10 @@
 module NeueBestellung exposing (main)
 
-import Api exposing (Bestellung, BestellungPosten, Pflegemittel, bestellungenLaden, neueBestellungSpeichern, pflegemittelLaden)
+import Api exposing (Anbieter, Bestellung, BestellungPosten, Pflegemittel, anbieterLaden, bestellungenLaden, neueBestellungSpeichern, pflegemittelLaden)
 import Browser
 import Dict exposing (Dict)
 import Html exposing (Attribute, Html, text)
-import Ui exposing (emailfeld, formular, p, tabelle, textbereich, zahlenfeld)
+import Ui exposing (auswahlfeld, emailfeld, formular, p, tabelle, textbereich, zahlenfeld)
 
 
 main =
@@ -17,8 +17,10 @@ main =
 
 
 type alias Model =
-    { pflegemittel : List Pflegemittel
+    { anbieter : List Anbieter
+    , pflegemittel : List Pflegemittel
     , bestellungen : List Bestellung
+    , gewaehlterAnbieter : Int
     , letzteBestellung : Maybe Bestellung
     , neueBestellung : Bestellung
     , ungueltigeMengen : Dict Int String
@@ -29,8 +31,10 @@ type alias Model =
 
 
 type Msg
-    = PflegemittelLaden (Result String (List Pflegemittel))
+    = AnbieterLaden (Result String (List Anbieter))
+    | PflegemittelLaden (Result String (List Pflegemittel))
     | BestellungenLaden (Result String (List Bestellung))
+    | AnbieterWaehlen String
     | EmpfaengerAendern String
     | NachrichtAendern String
     | MengeAendern Int String
@@ -87,8 +91,8 @@ letzteMenge pflegemittelId letzteBestellung =
     Maybe.withDefault 0 <| Maybe.map (bestellteMenge pflegemittelId) letzteBestellung
 
 
-neueBestellungAnlegen : List Pflegemittel -> Maybe Bestellung -> Bestellung
-neueBestellungAnlegen pflegemittel letzteBestellung =
+neueBestellungAnlegen : Int -> List Pflegemittel -> Maybe Bestellung -> Bestellung
+neueBestellungAnlegen anbieter pflegemittel letzteBestellung =
     let
         empfaenger =
             Maybe.withDefault "" <| Maybe.map .empfaenger letzteBestellung
@@ -102,7 +106,19 @@ neueBestellungAnlegen pflegemittel letzteBestellung =
         posten =
             List.map neuerPosten <| List.map .id pflegemittel
     in
-    Bestellung 0 0 empfaenger nachricht posten
+    Bestellung 0 anbieter empfaenger nachricht posten
+
+
+pflegemittelAuswerten : Model -> List Pflegemittel -> Model
+pflegemittelAuswerten model allePflegemittel =
+    let
+        filter =
+            \val -> val.wirdVerwendet && val.anbieterId == model.gewaehlterAnbieter
+
+        pflegemittel =
+            List.filter filter allePflegemittel
+    in
+    { model | pflegemittel = pflegemittel }
 
 
 bestellungenAuswerten : Model -> List Bestellung -> Model
@@ -114,8 +130,18 @@ bestellungenAuswerten model bestellungen =
     { model
         | bestellungen = bestellungen
         , letzteBestellung = letzteBestellung
-        , neueBestellung = neueBestellungAnlegen model.pflegemittel letzteBestellung
+        , neueBestellung = neueBestellungAnlegen model.gewaehlterAnbieter model.pflegemittel letzteBestellung
     }
+
+
+anbieterWaehlen : Model -> String -> Model
+anbieterWaehlen model neuerAnbieter =
+    case String.toInt neuerAnbieter of
+        Just anbieter ->
+            { model | gewaehlterAnbieter = anbieter }
+
+        Nothing ->
+            model
 
 
 neueBestellungAendern : Model -> (Bestellung -> Bestellung) -> Model
@@ -149,16 +175,22 @@ ohneLeerePosten bestellung =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model [] [] Nothing (neueBestellungAnlegen [] Nothing) Dict.empty False "" ""
-    , pflegemittelLaden PflegemittelLaden
+    ( Model [] [] [] 0 Nothing (neueBestellungAnlegen 0 [] Nothing) Dict.empty False "" ""
+    , anbieterLaden AnbieterLaden
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        AnbieterLaden (Ok anbieter) ->
+            ( { model | anbieter = anbieter }, pflegemittelLaden PflegemittelLaden )
+
+        AnbieterLaden (Err err) ->
+            ( { model | letzterFehler = err }, Cmd.none )
+
         PflegemittelLaden (Ok pflegemittel) ->
-            ( { model | pflegemittel = List.filter .wirdVerwendet pflegemittel }, bestellungenLaden BestellungenLaden )
+            ( pflegemittelAuswerten model pflegemittel, bestellungenLaden model.gewaehlterAnbieter BestellungenLaden )
 
         PflegemittelLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
@@ -168,6 +200,9 @@ update msg model =
 
         BestellungenLaden (Err err) ->
             ( { model | letzterFehler = err }, Cmd.none )
+
+        AnbieterWaehlen id ->
+            ( anbieterWaehlen model id, pflegemittelLaden PflegemittelLaden )
 
         EmpfaengerAendern empfaenger ->
             ( neueBestellungAendern model <| \val -> { val | empfaenger = empfaenger }, Cmd.none )
@@ -195,11 +230,18 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
+        anbieterBezeichnungen =
+            List.map (\anbieter -> ( String.fromInt anbieter.id, anbieter.bezeichnung )) model.anbieter
+
+        gewaehlterAnbieter =
+            String.fromInt model.gewaehlterAnbieter
+
         absendenEnabled =
             not model.wirdVersendet && Dict.isEmpty model.ungueltigeMengen
 
         inhalt =
-            [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
+            [ p [] [ auswahlfeld anbieterBezeichnungen gewaehlterAnbieter AnbieterWaehlen ]
+            , neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
             , p [] [ emailfeld "Empfänger" model.neueBestellung.empfaenger EmpfaengerAendern ]
             , p [] [ textbereich "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
             ]

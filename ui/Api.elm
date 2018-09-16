@@ -206,11 +206,11 @@ pflegemittelSpeichern msg pflegemittel =
     objektSpeichern msg url decoder encoder pflegemittel
 
 
-bestellungenLaden : (Result String (List Bestellung) -> msg) -> Cmd msg
-bestellungenLaden msg =
+bestellungenLaden : Int -> (Result String (List Bestellung) -> msg) -> Cmd msg
+bestellungenLaden anbieter msg =
     let
         url =
-            Url.absolute [ "api", "bestellungen" ] [ Url.int "bis_zu" 3 ]
+            Url.absolute [ "api", "bestellungen" ] [ Url.int "bis_zu" 3, Url.int "anbieter" anbieter ]
 
         decoder =
             Decode.list decodeBestellung
