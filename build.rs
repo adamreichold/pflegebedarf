@@ -1,7 +1,14 @@
-use std::fs::{read_dir, write};
+extern crate flate2;
+extern crate rayon;
+
+use std::fs::{read_dir, File};
 use std::io::{stdout, Result, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
+
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use rayon::prelude::*;
 
 #[cfg(feature = "build-ui")]
 fn main() -> Result<()> {
@@ -19,7 +26,9 @@ fn main() -> Result<()> {
         if !compiled.success() {
             panic!("Failed to compile UI module {}", module);
         }
+    }
 
+    MODULES.par_iter().map(|module| {
         let minified = Command::new("node")
             .current_dir("ui")
             .arg("node_modules/html-minifier/cli.js")
@@ -32,19 +41,13 @@ fn main() -> Result<()> {
             panic!("Failed to minify UI module {}", module);
         }
 
-        write(&format!("ui/html/{}.html", module), &minified.stdout)?;
+        let mut compressed =
+            GzEncoder::new(File::create(format!("ui/html/{}.html.gz", module))?, Compression::best());
+        compressed.write_all(&minified.stdout)?;
+        compressed.finish()?;
 
-        let compressed = Command::new("gzip")
-            .current_dir("ui/html")
-            .arg("--best")
-            .arg("--force")
-            .arg(&format!("{}.html", module))
-            .status()?;
-
-        if !compressed.success() {
-            panic!("Failed to compress UI module {}", module);
-        }
-    }
+        Ok(())
+    }).find_any(Result::is_err).unwrap_or(Ok(()))?;
 
     for entry in read_dir("ui")? {
         let file_name = entry?.file_name();

@@ -21,6 +21,10 @@ rusqlite = "0.14"
 time = "0.1"
 error-chain = "0.12"
 
+[build-dependencies]
+flate2 = "1.0"
+rayon = "1.0"
+
 [profile.release]
 lto = true
 codegen-units = 1
