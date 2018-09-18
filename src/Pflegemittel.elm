@@ -3,7 +3,7 @@ module Pflegemittel exposing (main)
 import Api exposing (Anbieter, Pflegemittel, anbieterLaden, pflegemittelLaden, pflegemittelSpeichern)
 import Browser
 import Dict exposing (Dict)
-import Html exposing (Attribute, Html)
+import Html exposing (Attribute, Html, text)
 import Ui exposing (ankreuzfeld, auswahlfeld, formular, optionsfeld, p, tabelle, textfeld, versteckt, zahlenfeld, zentrierteElemente)
 
 
@@ -25,6 +25,7 @@ type alias Model =
     , wirdGespeichert : Bool
     , nurVerwendeteZeigen : Bool
     , nurUngezaehlteZeigen : Bool
+    , nurFuerAnbieterZeigen : Int
     , meldung : String
     , letzterFehler : String
     }
@@ -44,6 +45,7 @@ type Msg
     | WurdeGezaehltAendern Int Bool
     | NurVerwendeteZeigenAendern Bool
     | NurUngezaehlteZeigenAendern Bool
+    | NurFuerAnbieterZeigenAendern String
     | PflegemittelSpeichern
     | PflegemittelGespeichert (Result String (List Pflegemittel))
 
@@ -116,6 +118,16 @@ vorhandeneMengeAendern model id neueVorhandeneMenge =
             { model | ungueltigeMengen = Dict.insert id neueVorhandeneMenge model.ungueltigeMengen }
 
 
+nurFuerAnbieterZeigenAendern : Model -> String -> Model
+nurFuerAnbieterZeigenAendern model neueAnbieterId =
+    case String.toInt neueAnbieterId of
+        Just anbieterId ->
+            { model | nurFuerAnbieterZeigen = anbieterId }
+
+        Nothing ->
+            model
+
+
 geaendertePflegemittel : Model -> List Pflegemittel
 geaendertePflegemittel model =
     let
@@ -128,7 +140,7 @@ geaendertePflegemittel model =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model [] [] [] Dict.empty Dict.empty False True False "" ""
+    ( Model [] [] [] Dict.empty Dict.empty False True False -1 "" ""
     , anbieterLaden AnbieterLaden
     )
 
@@ -181,6 +193,9 @@ update msg model =
         NurUngezaehlteZeigenAendern nurUngezaehlteZeigen ->
             ( { model | nurUngezaehlteZeigen = nurUngezaehlteZeigen }, Cmd.none )
 
+        NurFuerAnbieterZeigenAendern nurFuerAnbieterId ->
+            ( nurFuerAnbieterZeigenAendern model nurFuerAnbieterId, Cmd.none )
+
         PflegemittelSpeichern ->
             ( { model | wirdGespeichert = True, meldung = "Wird gespeichert...", letzterFehler = "" }, pflegemittelSpeichern PflegemittelGespeichert <| geaendertePflegemittel model )
 
@@ -201,28 +216,35 @@ view model =
         absendenEnabled =
             not model.wirdGespeichert && Dict.isEmpty model.ungueltigeVerbraeuche && Dict.isEmpty model.ungueltigeMengen
 
+        anbieterBezeichnungen =
+            List.map (\anbieter -> ( String.fromInt anbieter.id, anbieter.bezeichnung )) model.anbieter
+
+        nurFuerAnbieterBezeichnungen =
+            ( "-1", "keine Einschränkung" ) :: anbieterBezeichnungen
+
+        nurFuerAnbieterId =
+            String.fromInt model.nurFuerAnbieterZeigen
+
         inhalt =
-            [ pflegemittelTabelle model.pflegemittel model.anbieter model.ungueltigeVerbraeuche model.ungueltigeMengen model.nurVerwendeteZeigen model.nurUngezaehlteZeigen
+            [ pflegemittelTabelle model.pflegemittel anbieterBezeichnungen model.ungueltigeVerbraeuche model.ungueltigeMengen model.nurVerwendeteZeigen model.nurUngezaehlteZeigen model.nurFuerAnbieterZeigen
             , p zentrierteElemente <|
                 []
                     ++ optionsfeld "Nur verwendete zeigen" model.nurVerwendeteZeigen NurVerwendeteZeigenAendern
-                    ++ optionsfeld "Nur ungezählte anzeigen" model.nurUngezaehlteZeigen NurUngezaehlteZeigenAendern
+                    ++ optionsfeld "Nur ungezählte zeigen" model.nurUngezaehlteZeigen NurUngezaehlteZeigenAendern
+                    ++ [ auswahlfeld nurFuerAnbieterBezeichnungen nurFuerAnbieterId <| NurFuerAnbieterZeigenAendern, text "Nur für Anbieter zeigen" ]
             ]
     in
     formular PflegemittelSpeichern "Speichern" absendenEnabled inhalt model.meldung model.letzterFehler
 
 
-pflegemittelTabelle : List Pflegemittel -> List Anbieter -> Dict Int String -> Dict Int String -> Bool -> Bool -> Html Msg
-pflegemittelTabelle allePflegemittel alleAnbieter ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen =
+pflegemittelTabelle : List Pflegemittel -> List ( String, String ) -> Dict Int String -> Dict Int String -> Bool -> Bool -> Int -> Html Msg
+pflegemittelTabelle allePflegemittel anbieterBezeichnungen ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen nurFuerAnbieterZeigen =
     let
         ueberschriften =
             [ "Bezeichnung", "Einheit", "Anbieter", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
 
-        anbieterBezeichnungen =
-            List.map (\anbieter -> ( String.fromInt anbieter.id, anbieter.bezeichnung )) alleAnbieter
-
         filter =
-            \pflegemittel -> pflegemittel.id == 0 || ((not nurVerwendeteZeigen || pflegemittel.wirdVerwendet) && (not nurUngezaehlteZeigen || not pflegemittel.wurdeGezaehlt))
+            \pflegemittel -> pflegemittel.id == 0 || ((not nurVerwendeteZeigen || pflegemittel.wirdVerwendet) && (not nurUngezaehlteZeigen || not pflegemittel.wurdeGezaehlt) && (nurFuerAnbieterZeigen < 0 || pflegemittel.anbieterId == nurFuerAnbieterZeigen))
 
         zeile =
             \pflegemittel -> pflegemittelZeile pflegemittel anbieterBezeichnungen ungueltigeVerbraeuche ungueltigeMengen filter
