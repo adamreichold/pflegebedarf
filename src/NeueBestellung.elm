@@ -240,8 +240,8 @@ view model =
             not model.wirdVersendet && Dict.isEmpty model.ungueltigeMengen
 
         inhalt =
-            [ p [] [ auswahlfeld anbieterBezeichnungen gewaehlterAnbieter AnbieterWaehlen ]
-            , neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
+            [ neueBestellungTabelle model.pflegemittel model.bestellungen model.letzteBestellung model.neueBestellung model.ungueltigeMengen
+            , p [] [ auswahlfeld anbieterBezeichnungen gewaehlterAnbieter AnbieterWaehlen ]
             , p [] [ emailfeld "Empfänger" model.neueBestellung.empfaenger EmpfaengerAendern ]
             , p [] [ textbereich "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
             ]
