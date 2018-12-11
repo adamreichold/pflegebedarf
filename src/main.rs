@@ -1,23 +1,3 @@
-#![recursion_limit = "1024"]
-
-extern crate futures;
-extern crate hyper;
-extern crate url;
-
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-
-extern crate lettre;
-extern crate lettre_email;
-
-extern crate rusqlite;
-
-extern crate time;
-#[macro_use]
-extern crate error_chain;
-
 use std::num::ParseIntError;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -45,6 +25,11 @@ mod versenden;
 static ALLOC: ::std::alloc::System = ::std::alloc::System;
 
 mod errors {
+    use error_chain::{
+        error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
+        impl_extract_backtrace,
+    };
+
     error_chain! {
         foreign_links {
             Io(::std::io::Error);
@@ -57,7 +42,7 @@ mod errors {
     }
 }
 
-use errors::Result;
+use self::errors::Result;
 
 fn main() -> Result<()> {
     let conn = Arc::new(Mutex::new(datenbank::schema_anlegen()?));

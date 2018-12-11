@@ -1,3 +1,5 @@
+use serde_derive::{Deserialize, Serialize};
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Anbieter {
     pub id: Option<i64>,

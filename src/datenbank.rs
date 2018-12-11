@@ -1,8 +1,8 @@
 use rusqlite::types::ToSql;
-use rusqlite::{Connection, Row, Statement, Transaction};
+use rusqlite::{Connection, Row, Statement, Transaction, NO_PARAMS};
 
-use errors::Result;
-use modell::{Anbieter, Bestellung, Pflegemittel, Posten};
+use crate::errors::Result;
+use crate::modell::{Anbieter, Bestellung, Pflegemittel, Posten};
 
 trait FromRow {
     fn from_row(row: &Row) -> Self;
@@ -70,7 +70,7 @@ fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&ToSql]) -> Result<V
 pub fn schema_anlegen() -> Result<Connection> {
     let mut conn = Connection::open("datenbank.sqlite")?;
 
-    let user_version: u32 = conn.query_row("PRAGMA user_version", &[], |row| row.get(0))?;
+    let user_version: u32 = conn.query_row("PRAGMA user_version", NO_PARAMS, |row| row.get(0))?;
 
     if user_version < 6 {
         let txn = conn.transaction()?;
@@ -197,7 +197,7 @@ pub fn pflegemittel_speichern(
 
     for mut pm in pflegemittel {
         pm_stmt.execute(&[
-            &pm.id,
+            &pm.id as &ToSql,
             &pm.bezeichnung,
             &pm.einheit,
             &pm.hersteller_und_produkt,
@@ -211,7 +211,7 @@ pub fn pflegemittel_speichern(
         pm.zeitstempel = Some(zeitstempel);
 
         pmb_stmt.execute(&[
-            &pm.id,
+            &pm.id as &ToSql,
             &pm.zeitstempel,
             &pm.geplanter_verbrauch,
             &pm.vorhandene_menge,
@@ -253,7 +253,7 @@ pub fn bestellung_speichern(
     bestellung.zeitstempel = Some(zeitstempel);
 
     b_stmt.execute(&[
-        &bestellung.id,
+        &bestellung.id as &ToSql,
         &bestellung.zeitstempel,
         &bestellung.empfaenger,
         &bestellung.nachricht,
@@ -263,7 +263,11 @@ pub fn bestellung_speichern(
     bestellung.id = Some(txn.last_insert_rowid());
 
     for posten in &bestellung.posten {
-        bp_stmt.execute(&[&bestellung.id, &posten.pflegemittel_id, &posten.menge])?;
+        bp_stmt.execute(&[
+            &bestellung.id as &ToSql,
+            &posten.pflegemittel_id,
+            &posten.menge,
+        ])?;
     }
 
     Ok(bestellung)

@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::fs::File;
 
+use serde_derive::Deserialize;
 use serde_json::from_reader;
 
 use lettre::smtp::authentication::Credentials;
@@ -8,13 +9,13 @@ use lettre::smtp::SmtpTransport;
 use lettre::EmailTransport;
 use lettre_email::{EmailBuilder, Mailbox};
 
-use rusqlite::Transaction;
+use rusqlite::{Transaction, NO_PARAMS};
 
 use time::{at, strftime, Timespec};
 
-use datenbank::posten_laden;
-use errors::{Result, ResultExt};
-use modell::{Bestellung, Posten};
+use crate::datenbank::posten_laden;
+use crate::errors::{Result, ResultExt};
+use crate::modell::{Bestellung, Posten};
 
 #[derive(Deserialize)]
 struct SmtpConfig {
@@ -42,7 +43,8 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
     let datum = strftime(
         "%d.%m.%Y",
         &at(Timespec::new(bestellung.zeitstempel.unwrap(), 0)),
-    ).unwrap();
+    )
+    .unwrap();
 
     let posten = posten_formatieren(txn, bestellung.posten)?;
 
@@ -67,9 +69,10 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
         &email
             .build()
             .chain_err(|| "Konnte E-Mail nicht erstellen.")?,
-    ).chain_err(|| "Konnte E-Mail nicht versenden.")?;
+    )
+    .chain_err(|| "Konnte E-Mail nicht versenden.")?;
 
-    txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", &[])?;
+    txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", NO_PARAMS)?;
 
     Ok(())
 }
@@ -87,7 +90,8 @@ fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Result<String> 
             &mut stichpunkte,
             "{} {} {} {}",
             &anstrich, p.menge, pm.einheit, pm.bezeichnung
-        ).unwrap();
+        )
+        .unwrap();
 
         let hersteller_und_produkt_gesetzt = !pm.hersteller_und_produkt.is_empty();
         let pzn_oder_ref_gesetzt = !pm.pzn_oder_ref.is_empty();
@@ -97,7 +101,8 @@ fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Result<String> 
                 &mut stichpunkte,
                 " ({} {})",
                 pm.hersteller_und_produkt, pm.pzn_oder_ref
-            ).unwrap();
+            )
+            .unwrap();
         } else if hersteller_und_produkt_gesetzt {
             write!(&mut stichpunkte, " ({})", pm.hersteller_und_produkt).unwrap();
         } else if pzn_oder_ref_gesetzt {
@@ -150,7 +155,8 @@ mod tests {
         "bar"
     ]
 }"#,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!("smtp.foobar.org", config.smtp.domain);
         assert_eq!("foo", config.smtp.username);

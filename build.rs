@@ -1,6 +1,3 @@
-extern crate flate2;
-extern crate rayon;
-
 use std::fs::{read_dir, File};
 use std::io::{stdout, Result, Write};
 use std::os::unix::ffi::OsStrExt;

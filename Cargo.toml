@@ -2,6 +2,7 @@
 name = "pflegebedarf"
 authors = ["Adam Reichold <adam.reichold@t-online.de>"]
 version = "0.1.0"
+edition = "2018"
 publish = false
 
 [features]
@@ -17,7 +18,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 lettre = "0.8"
 lettre_email = "0.8"
-rusqlite = "0.14"
+rusqlite = "0.15"
 time = "0.1"
 error-chain = "0.12"
 
