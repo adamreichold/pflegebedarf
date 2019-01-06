@@ -214,7 +214,7 @@ update msg model =
             ( neueBestellungMengeAendern model pflegemittelId menge, Cmd.none )
 
         NeueBestellungVersenden ->
-            ( { model | wirdVersendet = True, meldung = "Wird versandt...", letzterFehler = "" }, neueBestellungSpeichern NeueBestellungVersandt <| ohneLeerePosten model.neueBestellung )
+            ( { model | wirdVersendet = True, meldung = "Wird versandt...", letzterFehler = "" }, neueBestellungSpeichern model.gewaehlterAnbieter NeueBestellungVersandt <| ohneLeerePosten model.neueBestellung )
 
         NeueBestellungVersandt (Ok bestellungen) ->
             let
