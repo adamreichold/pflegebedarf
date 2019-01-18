@@ -21,9 +21,6 @@ mod datenbank;
 mod modell;
 mod versenden;
 
-#[global_allocator]
-static ALLOC: ::std::alloc::System = ::std::alloc::System;
-
 mod errors {
     use error_chain::{
         error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
