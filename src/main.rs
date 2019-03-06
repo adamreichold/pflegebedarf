@@ -7,6 +7,7 @@ use futures::stream::Stream;
 use hyper::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::service::service_fn;
 use hyper::{Body, Error, Method, Request, Response, Server, StatusCode, Uri};
+use tokio::runtime::current_thread::run;
 use url::form_urlencoded::parse;
 
 use serde::{de::DeserializeOwned, ser::Serialize};
@@ -71,7 +72,7 @@ fn main() -> Result<()> {
         .serve(service)
         .map_err(|err| eprintln!("Server error: {}", err));
 
-    hyper::rt::run(server);
+    run(server);
 
     Ok(())
 }
