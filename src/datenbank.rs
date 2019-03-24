@@ -1,8 +1,8 @@
 use rusqlite::types::ToSql;
 use rusqlite::{Connection, Row, Statement, Transaction, NO_PARAMS};
 
-use crate::errors::Result;
 use crate::modell::{Anbieter, Bestellung, Pflegemittel, Posten};
+use crate::Result;
 
 trait FromRow {
     fn from_row(row: &Row) -> Self;

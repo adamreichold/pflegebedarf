@@ -5,17 +5,18 @@ use serde_derive::Deserialize;
 use serde_json::from_reader;
 
 use lettre::smtp::authentication::Credentials;
-use lettre::smtp::SmtpTransport;
-use lettre::EmailTransport;
+use lettre::smtp::{SmtpClient, SmtpTransport};
+use lettre::Transport;
 use lettre_email::{EmailBuilder, Mailbox};
 
 use rusqlite::{Transaction, NO_PARAMS};
 
+use failure::{ensure, ResultExt};
 use time::{at, strftime, Timespec};
 
 use crate::datenbank::posten_laden;
-use crate::errors::{Result, ResultExt};
 use crate::modell::{Bestellung, Posten};
+use crate::Result;
 
 #[derive(Deserialize)]
 struct SmtpConfig {
@@ -34,9 +35,10 @@ struct Config {
 }
 
 pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result<()> {
-    if !bestellung.nachricht.contains("{posten}") {
-        return Err("Die Nachricht muss den Platzhalter {posten} enthalten.".into());
-    }
+    ensure!(
+        bestellung.nachricht.contains("{posten}"),
+        "Die Nachricht muss den Platzhalter {posten} enthalten."
+    );
 
     let config: Config = from_reader(File::open("versenden.json")?)?;
 
@@ -54,23 +56,25 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
         .reply_to(parse_mailbox(config.antwort));
 
     for kopie in config.kopien {
-        email.add_cc(parse_mailbox(kopie));
+        email = email.cc(parse_mailbox(kopie));
     }
 
-    email.set_subject(config.betreff.replace("{datum}", &datum));
-    email.set_text(bestellung.nachricht.replace("{posten}", &posten));
+    email = email
+        .subject(config.betreff.replace("{datum}", &datum))
+        .text(bestellung.nachricht.replace("{posten}", &posten));
 
-    let mut smtp = SmtpTransport::simple_builder(&config.smtp.domain)
-        .chain_err(|| "Konnte SMTP-Verbindung nicht aufbauen.")?
-        .credentials(Credentials::new(config.smtp.username, config.smtp.password))
-        .build();
+    let email = email
+        .build()
+        .context("Konnte E-Mail nicht erstellen.")?
+        .into();
 
-    smtp.send(
-        &email
-            .build()
-            .chain_err(|| "Konnte E-Mail nicht erstellen.")?,
-    )
-    .chain_err(|| "Konnte E-Mail nicht versenden.")?;
+    let smtp_client = SmtpClient::new_simple(&config.smtp.domain)
+        .context("Konnte SMTP-Verbindung nicht aufbauen.")?
+        .credentials(Credentials::new(config.smtp.username, config.smtp.password));
+
+    SmtpTransport::new(smtp_client)
+        .send(email)
+        .context("Konnte E-Mail nicht versenden.")?;
 
     txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", NO_PARAMS)?;
 

@@ -15,32 +15,13 @@ use serde_json::{from_slice, to_vec};
 
 use rusqlite::{Connection, Transaction};
 
-use error_chain::ChainedError;
 use time::get_time;
 
 mod datenbank;
 mod modell;
 mod versenden;
 
-mod errors {
-    use error_chain::{
-        error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
-        impl_extract_backtrace,
-    };
-
-    error_chain! {
-        foreign_links {
-            Io(::std::io::Error);
-            ParseInt(::std::num::ParseIntError);
-            SQLite(::rusqlite::Error);
-            SerdeJson(::serde_json::Error);
-            LettreSmtp(::lettre::smtp::error::Error);
-            LettreEmail(::lettre_email::error::Error);
-        }
-    }
-}
-
-use self::errors::Result;
+type Result<T> = std::result::Result<T, failure::Error>;
 
 fn main() -> Result<()> {
     let conn = Arc::new(Mutex::new(datenbank::schema_anlegen()?));
@@ -183,7 +164,10 @@ fn fehler_behandeln(resp: Result<Response<Body>>) -> Response<Body> {
         Ok(resp) => resp,
 
         Err(err) => {
-            eprintln!("{}", err.display_chain());
+            eprintln!("Internal server error: {}", err);
+            for err in err.iter_causes() {
+                eprintln!("\t{}", err);
+            }
 
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
