@@ -1,63 +1,63 @@
 use rusqlite::types::ToSql;
-use rusqlite::{Connection, Row, Statement, Transaction, NO_PARAMS};
+use rusqlite::{Connection, Result as SqlResult, Row, Statement, Transaction, NO_PARAMS};
 
 use crate::modell::{Anbieter, Bestellung, Pflegemittel, Posten};
 use crate::Result;
 
-trait FromRow {
-    fn from_row(row: &Row) -> Self;
+trait FromRow: Sized {
+    fn from_row(row: &Row) -> SqlResult<Self>;
 }
 
 impl FromRow for Anbieter {
-    fn from_row(row: &Row) -> Self {
-        Self {
-            id: row.get("id"),
-            bezeichnung: row.get("bezeichnung"),
-        }
+    fn from_row(row: &Row) -> SqlResult<Self> {
+        Ok(Self {
+            id: Some(row.get("id")?),
+            bezeichnung: row.get("bezeichnung")?,
+        })
     }
 }
 
 impl FromRow for Pflegemittel {
-    fn from_row(row: &Row) -> Self {
-        Self {
-            id: Some(row.get("id")),
-            anbieter_id: row.get("anbieter_id"),
-            zeitstempel: row.get("zeitstempel"),
-            bezeichnung: row.get("bezeichnung"),
-            einheit: row.get("einheit"),
-            hersteller_und_produkt: row.get("hersteller_und_produkt"),
-            pzn_oder_ref: row.get("pzn_oder_ref"),
-            geplanter_verbrauch: row.get("geplanter_verbrauch"),
-            vorhandene_menge: row.get("vorhandene_menge"),
-            wird_verwendet: row.get("wird_verwendet"),
-            wurde_gezaehlt: row.get("wurde_gezaehlt"),
-        }
+    fn from_row(row: &Row) -> SqlResult<Self> {
+        Ok(Self {
+            id: Some(row.get("id")?),
+            anbieter_id: row.get("anbieter_id")?,
+            zeitstempel: row.get("zeitstempel")?,
+            bezeichnung: row.get("bezeichnung")?,
+            einheit: row.get("einheit")?,
+            hersteller_und_produkt: row.get("hersteller_und_produkt")?,
+            pzn_oder_ref: row.get("pzn_oder_ref")?,
+            geplanter_verbrauch: row.get("geplanter_verbrauch")?,
+            vorhandene_menge: row.get("vorhandene_menge")?,
+            wird_verwendet: row.get("wird_verwendet")?,
+            wurde_gezaehlt: row.get("wurde_gezaehlt")?,
+        })
     }
 }
 
 impl FromRow for Bestellung {
-    fn from_row(row: &Row) -> Self {
-        Self {
-            id: Some(row.get("id")),
-            anbieter_id: row.get("anbieter_id"),
-            zeitstempel: row.get("zeitstempel"),
-            empfaenger: row.get("empfaenger"),
-            nachricht: row.get("nachricht"),
+    fn from_row(row: &Row) -> SqlResult<Self> {
+        Ok(Self {
+            id: Some(row.get("id")?),
+            anbieter_id: row.get("anbieter_id")?,
+            zeitstempel: row.get("zeitstempel")?,
+            empfaenger: row.get("empfaenger")?,
+            nachricht: row.get("nachricht")?,
             posten: Vec::new(),
-        }
+        })
     }
 }
 
 impl FromRow for Posten {
-    fn from_row(row: &Row) -> Self {
-        Self {
-            pflegemittel_id: row.get("pflegemittel_id"),
-            menge: row.get("menge"),
-        }
+    fn from_row(row: &Row) -> SqlResult<Self> {
+        Ok(Self {
+            pflegemittel_id: row.get("pflegemittel_id")?,
+            menge: row.get("menge")?,
+        })
     }
 }
 
-fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&ToSql]) -> Result<Vec<T>> {
+fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&dyn ToSql]) -> Result<Vec<T>> {
     let mut rows = Vec::new();
 
     for row in stmt.query_map(params, T::from_row)? {
@@ -197,7 +197,7 @@ pub fn pflegemittel_speichern(
 
     for mut pm in pflegemittel {
         pm_stmt.execute(&[
-            &pm.id as &ToSql,
+            &pm.id as &dyn ToSql,
             &pm.bezeichnung,
             &pm.einheit,
             &pm.hersteller_und_produkt,
@@ -211,7 +211,7 @@ pub fn pflegemittel_speichern(
         pm.zeitstempel = Some(zeitstempel);
 
         pmb_stmt.execute(&[
-            &pm.id as &ToSql,
+            &pm.id as &dyn ToSql,
             &pm.zeitstempel,
             &pm.geplanter_verbrauch,
             &pm.vorhandene_menge,
@@ -253,7 +253,7 @@ pub fn bestellung_speichern(
     bestellung.zeitstempel = Some(zeitstempel);
 
     b_stmt.execute(&[
-        &bestellung.id as &ToSql,
+        &bestellung.id as &dyn ToSql,
         &bestellung.zeitstempel,
         &bestellung.empfaenger,
         &bestellung.nachricht,
@@ -264,7 +264,7 @@ pub fn bestellung_speichern(
 
     for posten in &bestellung.posten {
         bp_stmt.execute(&[
-            &bestellung.id as &ToSql,
+            &bestellung.id as &dyn ToSql,
             &posten.pflegemittel_id,
             &posten.menge,
         ])?;

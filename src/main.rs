@@ -58,7 +58,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-type Antwort = Box<Future<Item = Response<Body>, Error = Error> + Send>;
+type Antwort = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
 
 fn pflegemittel_anzeigen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../target/html/Pflegemittel.html.gz"))
