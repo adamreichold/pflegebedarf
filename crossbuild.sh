@@ -6,7 +6,7 @@
 
 cargo check
 
-sudo docker run --interactive --rm --volume $PWD:/src rust:stretch /bin/bash -xe <<EOF
+podman run --interactive --rm --volume $PWD:/src rust:latest /bin/bash -xe <<EOF
 
 export DEBIAN_FRONTEND="noninteractive"
 

@@ -1,8 +1,9 @@
-use rusqlite::types::ToSql;
-use rusqlite::{Connection, Result as SqlResult, Row, Statement, Transaction, NO_PARAMS};
+use failure::Fallible;
+use rusqlite::{
+    types::ToSql, Connection, Result as SqlResult, Row, Statement, Transaction, NO_PARAMS,
+};
 
 use crate::modell::{Anbieter, Bestellung, Pflegemittel, Posten};
-use crate::Result;
 
 trait FromRow: Sized {
     fn from_row(row: &Row) -> SqlResult<Self>;
@@ -57,7 +58,7 @@ impl FromRow for Posten {
     }
 }
 
-fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&dyn ToSql]) -> Result<Vec<T>> {
+fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&dyn ToSql]) -> Fallible<Vec<T>> {
     let mut rows = Vec::new();
 
     for row in stmt.query_map(params, T::from_row)? {
@@ -67,7 +68,7 @@ fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&dyn ToSql]) -> Resu
     Ok(rows)
 }
 
-pub fn schema_anlegen() -> Result<Connection> {
+pub fn schema_anlegen() -> Fallible<Connection> {
     let mut conn = Connection::open("datenbank.sqlite")?;
 
     let user_version: u32 = conn.query_row("PRAGMA user_version", NO_PARAMS, |row| row.get(0))?;
@@ -158,7 +159,7 @@ PRAGMA user_version = 8;
     Ok(conn)
 }
 
-pub fn anbieter_laden(txn: &Transaction) -> Result<Vec<Anbieter>> {
+pub fn anbieter_laden(txn: &Transaction) -> Fallible<Vec<Anbieter>> {
     let mut stmt = txn.prepare(
         r#"
 SELECT a.* FROM anbieter a
@@ -168,7 +169,7 @@ SELECT a.* FROM anbieter a
     collect_rows(&mut stmt, &[])
 }
 
-pub fn pflegemittel_laden(txn: &Transaction) -> Result<Vec<Pflegemittel>> {
+pub fn pflegemittel_laden(txn: &Transaction) -> Fallible<Vec<Pflegemittel>> {
     let mut stmt = txn.prepare(
         r#"
 WITH groesste_zeitstempel AS (
@@ -189,7 +190,7 @@ pub fn pflegemittel_speichern(
     txn: &Transaction,
     pflegemittel: Vec<Pflegemittel>,
     zeitstempel: i64,
-) -> Result<()> {
+) -> Fallible<()> {
     let mut pm_stmt =
         txn.prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?)")?;
 
@@ -225,7 +226,7 @@ pub fn bestellungen_laden(
     txn: &Transaction,
     anbieter: i64,
     bis_zu: u32,
-) -> Result<Vec<Bestellung>> {
+) -> Fallible<Vec<Bestellung>> {
     let mut b_stmt =
         txn.prepare("SELECT b.* FROM bestellungen b WHERE b.anbieter_id = ? ORDER BY b.zeitstempel DESC LIMIT ?")?;
 
@@ -244,7 +245,7 @@ pub fn bestellung_speichern(
     txn: &Transaction,
     mut bestellung: Bestellung,
     zeitstempel: i64,
-) -> Result<Bestellung> {
+) -> Fallible<Bestellung> {
     let mut b_stmt = txn.prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?, ?)")?;
 
     let mut bp_stmt = txn.prepare("INSERT INTO bestellungen_posten VALUES (?, ?, ?)")?;
@@ -273,7 +274,10 @@ pub fn bestellung_speichern(
     Ok(bestellung)
 }
 
-pub fn posten_laden(txn: &Transaction, posten: Vec<Posten>) -> Result<Vec<(Posten, Pflegemittel)>> {
+pub fn posten_laden(
+    txn: &Transaction,
+    posten: Vec<Posten>,
+) -> Fallible<Vec<(Posten, Pflegemittel)>> {
     let mut stmt = txn.prepare(
         r#"
 SELECT pm.*, pmb.zeitstempel, pmb.geplanter_verbrauch, pmb.vorhandene_menge

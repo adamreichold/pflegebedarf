@@ -2,28 +2,30 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use futures::future::{ok, Future};
-use futures::stream::Stream;
-use hyper::header::{CONTENT_ENCODING, CONTENT_TYPE};
-use hyper::service::service_fn;
-use hyper::{Body, Error, Method, Request, Response, Server, StatusCode, Uri};
-use tokio::runtime::current_thread::run;
-use url::form_urlencoded::parse;
-
+use failure::Fallible;
+use hyper::{
+    header::{CONTENT_ENCODING, CONTENT_TYPE},
+    service::service_fn,
+    Body, Error, Method, Request, Response, Server, StatusCode, Uri,
+};
+use rusqlite::{Connection, Transaction};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::{from_slice, to_vec};
-
-use rusqlite::{Connection, Transaction};
-
 use time::get_time;
+use tokio::{
+    prelude::{
+        future::{ok, Future},
+        stream::Stream,
+    },
+    runtime::current_thread::run,
+};
+use url::form_urlencoded::parse;
 
 mod datenbank;
 mod modell;
 mod versenden;
 
-type Result<T> = std::result::Result<T, failure::Error>;
-
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     let conn = Arc::new(Mutex::new(datenbank::schema_anlegen()?));
 
     let service = move || {
@@ -111,7 +113,7 @@ fn eingebette_seite_ausliefern(body: &'static [u8]) -> Antwort {
         .unwrap()))
 }
 
-fn anfrage_verarbeiten<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Result<T>>(
+fn anfrage_verarbeiten<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Fallible<T>>(
     uri: &Uri,
     conn: &Mutex<Connection>,
     handler: H,
@@ -124,7 +126,7 @@ fn anfrage_verarbeiten<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Result<T>>
 fn anfrage_mit_objekt_verarbeiten<
     S: DeserializeOwned,
     T: Serialize,
-    H: 'static + Send + FnOnce(&Uri, S, &Transaction) -> Result<T>,
+    H: 'static + Send + FnOnce(&Uri, S, &Transaction) -> Fallible<T>,
 >(
     req: Request<Body>,
     conn: Arc<Mutex<Connection>>,
@@ -141,11 +143,11 @@ fn anfrage_mit_objekt_verarbeiten<
     }))
 }
 
-fn in_transaktion_ausfuehren<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Result<T>>(
+fn in_transaktion_ausfuehren<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Fallible<T>>(
     uri: &Uri,
     conn: &Mutex<Connection>,
     handler: H,
-) -> Result<Response<Body>> {
+) -> Fallible<Response<Body>> {
     let mut conn = conn.lock().unwrap();
     let txn = conn.transaction()?;
 
@@ -159,7 +161,7 @@ fn in_transaktion_ausfuehren<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Resu
         .unwrap())
 }
 
-fn fehler_behandeln(resp: Result<Response<Body>>) -> Response<Body> {
+fn fehler_behandeln(resp: Fallible<Response<Body>>) -> Response<Body> {
     match resp {
         Ok(resp) => resp,
 
@@ -178,11 +180,11 @@ fn fehler_behandeln(resp: Result<Response<Body>>) -> Response<Body> {
     }
 }
 
-fn parse_anbieter(uri: &Uri) -> Result<i64> {
+fn parse_anbieter(uri: &Uri) -> Fallible<i64> {
     parse_param(uri, "anbieter", 0)
 }
 
-fn parse_bis_zu(uri: &Uri) -> Result<u32> {
+fn parse_bis_zu(uri: &Uri) -> Fallible<u32> {
     parse_param(uri, "bis_zu", 1)
 }
 
@@ -190,7 +192,7 @@ fn parse_param<T: FromStr<Err = ParseIntError>>(
     uri: &Uri,
     param: &'static str,
     def_val: T,
-) -> Result<T> {
+) -> Fallible<T> {
     if let Some(query) = uri.query() {
         for (key, val) in parse(query.as_bytes()) {
             if key == param {

@@ -1,22 +1,19 @@
 use std::fmt::Write;
 use std::fs::File;
 
+use failure::{ensure, Fallible, ResultExt};
+use lettre::{
+    smtp::{authentication::Credentials, SmtpClient, SmtpTransport},
+    Transport,
+};
+use lettre_email::{EmailBuilder, Mailbox};
+use rusqlite::{Transaction, NO_PARAMS};
 use serde_derive::Deserialize;
 use serde_json::from_reader;
-
-use lettre::smtp::authentication::Credentials;
-use lettre::smtp::{SmtpClient, SmtpTransport};
-use lettre::Transport;
-use lettre_email::{EmailBuilder, Mailbox};
-
-use rusqlite::{Transaction, NO_PARAMS};
-
-use failure::{ensure, ResultExt};
 use time::{at, strftime, Timespec};
 
 use crate::datenbank::posten_laden;
 use crate::modell::{Bestellung, Posten};
-use crate::Result;
 
 #[derive(Deserialize)]
 struct SmtpConfig {
@@ -34,7 +31,7 @@ struct Config {
     kopien: Vec<String>,
 }
 
-pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result<()> {
+pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallible<()> {
     ensure!(
         bestellung.nachricht.contains("{posten}"),
         "Die Nachricht muss den Platzhalter {posten} enthalten."
@@ -81,7 +78,7 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Result
     Ok(())
 }
 
-fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Result<String> {
+fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Fallible<String> {
     let mut stichpunkte = String::new();
     let mut anstrich = "*";
 

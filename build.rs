@@ -1,14 +1,14 @@
 use std::fs::{read_dir, File};
-use std::io::{stdout, Result, Write};
+use std::io::{stdout, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
 
-use flate2::write::GzEncoder;
-use flate2::Compression;
+use failure::{ensure, Fallible};
+use flate2::{write::GzEncoder, Compression};
 use rayon::prelude::*;
 
 #[cfg(feature = "build-ui")]
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     const MODULES: &[&'static str] = &["Pflegemittel", "NeueBestellung"];
 
     for module in MODULES {
@@ -19,12 +19,10 @@ fn main() -> Result<()> {
             .arg(&format!("src/{}.elm", module))
             .status()?;
 
-        if !compiled.success() {
-            panic!("Failed to compile UI module {}", module);
-        }
+        ensure!(compiled.success(), "Failed to compile UI module {}", module);
     }
 
-    MODULES.par_iter().map(|module| {
+    MODULES.par_iter().try_for_each(|module| {
         let minified = Command::new("node")
             .arg("node_modules/html-minifier/cli.js")
             .arg("--minify-js")
@@ -32,9 +30,7 @@ fn main() -> Result<()> {
             .arg(&format!("target/html/{}.html", module))
             .output()?;
 
-        if !minified.status.success() {
-            panic!("Failed to minify UI module {}", module);
-        }
+        ensure!(minified.status.success(), "Failed to minify UI module {}", module);
 
         let mut compressed =
             GzEncoder::new(File::create(format!("target/html/{}.html.gz", module))?, Compression::best());
@@ -42,7 +38,7 @@ fn main() -> Result<()> {
         compressed.finish()?;
 
         Ok(())
-    }).find_any(Result::is_err).unwrap_or(Ok(()))?;
+    })?;
 
     for entry in read_dir("src")? {
         let file_name = entry?.file_name();

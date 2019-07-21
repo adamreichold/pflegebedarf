@@ -10,7 +10,6 @@ default = ["build-ui"]
 build-ui = []
 
 [dependencies]
-futures = "0.1"
 tokio = "0.1"
 hyper = "0.12"
 url = "1.7"
@@ -24,6 +23,7 @@ time = "0.1"
 failure = "0.1"
 
 [build-dependencies]
+failure = "0.1"
 flate2 = "1.0"
 rayon = "1.0"
 
