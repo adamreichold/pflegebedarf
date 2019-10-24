@@ -125,37 +125,35 @@ encodeBestellung bestellung =
         ]
 
 
-fehlerBehandeln : Result Http.Error a -> Result String a
-fehlerBehandeln result =
-    case result of
-        Ok val ->
-            Ok val
+fehlerBehandeln : (Result String a -> msg) -> Decode.Decoder a -> Http.Expect msg
+fehlerBehandeln msg decoder =
+    Http.expectStringResponse msg <|
+        \response ->
+            case response of
+                Http.BadUrl_ url ->
+                    Err "interner Fehler"
 
-        Err err ->
-            let
-                msg =
-                    case err of
-                        Http.BadStatus response ->
-                            response.body
+                Http.Timeout_ ->
+                    Err "Zeitüberschreitung"
 
-                        Http.BadPayload _ response ->
-                            response.body
+                Http.NetworkError_ ->
+                    Err "Netzwerkfehler"
 
-                        Http.Timeout ->
-                            "Zeitüberschreitung"
+                Http.BadStatus_ metadata body ->
+                    Err body
 
-                        Http.NetworkError ->
-                            "Netzwerkfehler"
+                Http.GoodStatus_ metadata body ->
+                    case Decode.decodeString decoder body of
+                        Ok value ->
+                            Ok value
 
-                        Http.BadUrl _ ->
-                            "interner Fehler"
-            in
-            Err msg
+                        Err err ->
+                            Err (Decode.errorToString err)
 
 
 objektLaden : (Result String a -> msg) -> String -> Decode.Decoder a -> Cmd msg
 objektLaden msg url decoder =
-    Http.send (msg << fehlerBehandeln) (Http.get url decoder)
+    Http.get { url = url, expect = fehlerBehandeln msg decoder }
 
 
 objektSpeichern : (Result String a -> msg) -> String -> Decode.Decoder a -> (b -> Encode.Value) -> b -> Cmd msg
@@ -164,7 +162,11 @@ objektSpeichern msg url decoder encoder objekt =
         body =
             Http.jsonBody <| encoder objekt
     in
-    Http.send (msg << fehlerBehandeln) (Http.post url body decoder)
+    Http.post
+        { url = url
+        , body = body
+        , expect = fehlerBehandeln msg decoder
+        }
 
 
 anbieterLaden : (Result String (List Anbieter) -> msg) -> Cmd msg
