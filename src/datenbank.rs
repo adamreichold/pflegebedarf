@@ -1,9 +1,11 @@
-use failure::Fallible;
 use rusqlite::{
     types::ToSql, Connection, Result as SqlResult, Row, Statement, Transaction, NO_PARAMS,
 };
 
-use crate::modell::{Anbieter, Bestellung, Pflegemittel, Posten};
+use crate::{
+    modell::{Anbieter, Bestellung, Pflegemittel, Posten},
+    Fallible,
+};
 
 trait FromRow: Sized {
     fn from_row(row: &Row) -> SqlResult<Self>;

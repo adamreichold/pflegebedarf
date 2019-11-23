@@ -20,10 +20,8 @@ lettre = "0.9"
 lettre_email = "0.9"
 rusqlite = "0.20"
 time = "0.1"
-failure = "0.1"
 
 [build-dependencies]
-failure = "0.1"
 flate2 = "1.0"
 rayon = "1.0"
 

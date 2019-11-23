@@ -1,12 +1,12 @@
+use std::error::Error;
 use std::num::ParseIntError;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use failure::Fallible;
 use hyper::{
     header::{CONTENT_ENCODING, CONTENT_TYPE},
     service::service_fn,
-    Body, Error, Method, Request, Response, Server, StatusCode, Uri,
+    Body, Method, Request, Response, Server, StatusCode, Uri,
 };
 use rusqlite::{Connection, Transaction};
 use serde::{de::DeserializeOwned, ser::Serialize};
@@ -24,6 +24,8 @@ use url::form_urlencoded::parse;
 mod datenbank;
 mod modell;
 mod versenden;
+
+type Fallible<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 fn main() -> Fallible<()> {
     let conn = Arc::new(Mutex::new(datenbank::schema_anlegen()?));
@@ -60,7 +62,7 @@ fn main() -> Fallible<()> {
     Ok(())
 }
 
-type Antwort = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
+type Antwort = Box<dyn Future<Item = Response<Body>, Error = Box<dyn Error + Send + Sync>> + Send>;
 
 fn pflegemittel_anzeigen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../target/html/Pflegemittel.html.gz"))
@@ -134,7 +136,7 @@ fn anfrage_mit_objekt_verarbeiten<
 ) -> Antwort {
     let (parts, body) = req.into_parts();
 
-    Box::new(body.concat2().and_then(move |body| {
+    Box::new(body.concat2().from_err().and_then(move |body| {
         ok(fehler_behandeln(in_transaktion_ausfuehren(
             &parts.uri,
             &conn,
@@ -167,9 +169,6 @@ fn fehler_behandeln(resp: Fallible<Response<Body>>) -> Response<Body> {
 
         Err(err) => {
             eprintln!("Internal server error: {}", err);
-            for err in err.iter_causes() {
-                eprintln!("\t{}", err);
-            }
 
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)

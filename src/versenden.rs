@@ -1,7 +1,6 @@
 use std::fmt::Write;
 use std::fs::File;
 
-use failure::{ensure, Fallible, ResultExt};
 use lettre::{
     smtp::{authentication::Credentials, SmtpClient, SmtpTransport},
     Transport,
@@ -12,8 +11,11 @@ use serde_derive::Deserialize;
 use serde_json::from_reader;
 use time::{at, strftime, Timespec};
 
-use crate::datenbank::posten_laden;
-use crate::modell::{Bestellung, Posten};
+use crate::{
+    datenbank::posten_laden,
+    modell::{Bestellung, Posten},
+    Fallible,
+};
 
 #[derive(Deserialize)]
 struct SmtpConfig {
@@ -32,10 +34,9 @@ struct Config {
 }
 
 pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallible<()> {
-    ensure!(
-        bestellung.nachricht.contains("{posten}"),
-        "Die Nachricht muss den Platzhalter {posten} enthalten."
-    );
+    if !bestellung.nachricht.contains("{posten}") {
+        return Err("Die Nachricht muss den Platzhalter {posten} enthalten.".into());
+    }
 
     let config: Config = from_reader(File::open("versenden.json")?)?;
 
@@ -62,16 +63,16 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallib
 
     let email = email
         .build()
-        .context("Konnte E-Mail nicht erstellen.")?
+        .map_err(|err| format!("Konnte E-Mail nicht erstellen: {}", err))?
         .into();
 
     let smtp_client = SmtpClient::new_simple(&config.smtp.domain)
-        .context("Konnte SMTP-Verbindung nicht aufbauen.")?
+        .map_err(|err| format!("Konnte SMTP-Verbindung nicht aufbauen: {}", err))?
         .credentials(Credentials::new(config.smtp.username, config.smtp.password));
 
     SmtpTransport::new(smtp_client)
         .send(email)
-        .context("Konnte E-Mail nicht versenden.")?;
+        .map_err(|err| format!("Konnte E-Mail nicht versenden: {}", err))?;
 
     txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", NO_PARAMS)?;
 
