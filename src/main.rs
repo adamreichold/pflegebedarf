@@ -1,23 +1,25 @@
+use std::cell::RefCell;
+use std::convert::Infallible;
 use std::error::Error;
+use std::future::Future;
 use std::num::ParseIntError;
+use std::rc::Rc;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 
 use hyper::{
+    body::{to_bytes, Body},
     header::{CONTENT_ENCODING, CONTENT_TYPE},
-    service::service_fn,
-    Body, Method, Request, Response, Server, StatusCode, Uri,
+    rt::Executor,
+    service::{make_service_fn, service_fn},
+    Method, Request, Response, Server, StatusCode, Uri,
 };
 use rusqlite::{Connection, Transaction};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::{from_slice, to_vec};
 use time::get_time;
 use tokio::{
-    prelude::{
-        future::{ok, Future},
-        stream::Stream,
-    },
-    runtime::current_thread::run,
+    runtime::Builder,
+    task::{spawn_local, LocalSet},
 };
 use url::form_urlencoded::parse;
 
@@ -28,41 +30,70 @@ mod versenden;
 type Fallible<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 fn main() -> Fallible<()> {
-    let conn = Arc::new(Mutex::new(datenbank::schema_anlegen()?));
+    let conn = Rc::new(RefCell::new(datenbank::schema_anlegen()?));
 
-    let service = move || {
-        let conn = conn.clone();
+    #[derive(Clone, Copy)]
+    struct LocalExecutor;
 
-        service_fn(move |req| match (req.method(), req.uri().path()) {
-            (&Method::GET, "/ui/Pflegemittel") => pflegemittel_anzeigen(),
-            (&Method::GET, "/ui/NeueBestellung") => neue_bestellung_anlegen(),
+    impl<F: Future + 'static> Executor<F> for LocalExecutor {
+        fn execute(&self, f: F) {
+            spawn_local(f);
+        }
+    }
 
-            (&Method::GET, "/api/anbieter") => anbieter_laden(req.uri(), &conn),
+    LocalSet::new().block_on(
+        &mut Builder::new().enable_all().basic_scheduler().build()?,
+        async move {
+            let service = make_service_fn(move |_| {
+                let conn = conn.clone();
 
-            (&Method::GET, "/api/pflegemittel") => pflegemittel_laden(req.uri(), &conn),
-            (&Method::POST, "/api/pflegemittel") => pflegemittel_speichern(req, conn.clone()),
+                async move {
+                    Ok::<_, Infallible>(service_fn(move |req| {
+                        let conn = conn.clone();
 
-            (&Method::GET, "/api/bestellungen") => bestellungen_laden(req.uri(), &conn),
-            (&Method::POST, "/api/bestellungen") => bestellung_versenden(req, conn.clone()),
+                        async move {
+                            match (req.method(), req.uri().path()) {
+                                (&Method::GET, "/ui/Pflegemittel") => pflegemittel_anzeigen(),
+                                (&Method::GET, "/ui/NeueBestellung") => neue_bestellung_anlegen(),
 
-            _ => Box::new(ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .header(CONTENT_TYPE, "text/plain")
-                .body("Method or path not found.".into())
-                .unwrap())),
-        })
-    };
+                                (&Method::GET, "/api/anbieter") => anbieter_laden(req.uri(), &conn),
 
-    let server = Server::bind(&([0, 0, 0, 0], 8080).into())
-        .serve(service)
-        .map_err(|err| eprintln!("Server error: {}", err));
+                                (&Method::GET, "/api/pflegemittel") => {
+                                    pflegemittel_laden(req.uri(), &conn)
+                                }
+                                (&Method::POST, "/api/pflegemittel") => {
+                                    pflegemittel_speichern(req, &conn).await
+                                }
 
-    run(server);
+                                (&Method::GET, "/api/bestellungen") => {
+                                    bestellungen_laden(req.uri(), &conn)
+                                }
+                                (&Method::POST, "/api/bestellungen") => {
+                                    bestellung_versenden(req, &conn).await
+                                }
+
+                                _ => Response::builder()
+                                    .status(StatusCode::NOT_FOUND)
+                                    .header(CONTENT_TYPE, "text/plain")
+                                    .body("Method or path not found.".into())
+                                    .map_err(Into::into),
+                            }
+                        }
+                    }))
+                }
+            });
+
+            Server::bind(&([0, 0, 0, 0], 8080).into())
+                .executor(LocalExecutor)
+                .serve(service)
+                .await
+        },
+    )?;
 
     Ok(())
 }
 
-type Antwort = Box<dyn Future<Item = Response<Body>, Error = Box<dyn Error + Send + Sync>> + Send>;
+type Antwort = Fallible<Response<Body>>;
 
 fn pflegemittel_anzeigen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../target/html/Pflegemittel.html.gz"))
@@ -72,22 +103,23 @@ fn neue_bestellung_anlegen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../target/html/NeueBestellung.html.gz"))
 }
 
-fn anbieter_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
+fn anbieter_laden(uri: &Uri, conn: &RefCell<Connection>) -> Antwort {
     anfrage_verarbeiten(uri, conn, |_, txn| datenbank::anbieter_laden(txn))
 }
 
-fn pflegemittel_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
+fn pflegemittel_laden(uri: &Uri, conn: &RefCell<Connection>) -> Antwort {
     anfrage_verarbeiten(uri, conn, |_, txn| datenbank::pflegemittel_laden(txn))
 }
 
-fn pflegemittel_speichern(req: Request<Body>, conn: Arc<Mutex<Connection>>) -> Antwort {
+async fn pflegemittel_speichern(req: Request<Body>, conn: &RefCell<Connection>) -> Antwort {
     anfrage_mit_objekt_verarbeiten(req, conn, |_, pflegemittel, txn| {
         datenbank::pflegemittel_speichern(txn, pflegemittel, get_time().sec)?;
         datenbank::pflegemittel_laden(txn)
     })
+    .await
 }
 
-fn bestellungen_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
+fn bestellungen_laden(uri: &Uri, conn: &RefCell<Connection>) -> Antwort {
     anfrage_verarbeiten(uri, conn, |uri, txn| {
         let anbieter = parse_anbieter(uri)?;
         let bis_zu = parse_bis_zu(uri)?;
@@ -96,7 +128,7 @@ fn bestellungen_laden(uri: &Uri, conn: &Mutex<Connection>) -> Antwort {
     })
 }
 
-fn bestellung_versenden(req: Request<Body>, conn: Arc<Mutex<Connection>>) -> Antwort {
+async fn bestellung_versenden(req: Request<Body>, conn: &RefCell<Connection>) -> Antwort {
     anfrage_mit_objekt_verarbeiten(req, conn, |uri, bestellung, txn| {
         let anbieter = parse_anbieter(uri)?;
         let bis_zu = parse_bis_zu(uri)?;
@@ -105,67 +137,66 @@ fn bestellung_versenden(req: Request<Body>, conn: Arc<Mutex<Connection>>) -> Ant
         versenden::bestellung_versenden(txn, bestellung)?;
         datenbank::bestellungen_laden(txn, anbieter, bis_zu)
     })
+    .await
 }
 
-fn eingebette_seite_ausliefern(body: &'static [u8]) -> Antwort {
-    Box::new(ok(Response::builder()
+fn eingebette_seite_ausliefern(body: &'static [u8]) -> Fallible<Response<Body>> {
+    Response::builder()
         .header(CONTENT_TYPE, "text/html")
         .header(CONTENT_ENCODING, "gzip")
         .body(body.into())
-        .unwrap()))
+        .map_err(Into::into)
 }
 
 fn anfrage_verarbeiten<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Fallible<T>>(
     uri: &Uri,
-    conn: &Mutex<Connection>,
+    conn: &RefCell<Connection>,
     handler: H,
 ) -> Antwort {
-    Box::new(ok(fehler_behandeln(in_transaktion_ausfuehren(
-        uri, conn, handler,
-    ))))
+    fehler_behandeln(in_transaktion_ausfuehren(uri, conn, handler))
 }
 
-fn anfrage_mit_objekt_verarbeiten<
+async fn anfrage_mit_objekt_verarbeiten<
     S: DeserializeOwned,
     T: Serialize,
     H: 'static + Send + FnOnce(&Uri, S, &Transaction) -> Fallible<T>,
 >(
     req: Request<Body>,
-    conn: Arc<Mutex<Connection>>,
+    conn: &RefCell<Connection>,
     handler: H,
 ) -> Antwort {
     let (parts, body) = req.into_parts();
 
-    Box::new(body.concat2().from_err().and_then(move |body| {
-        ok(fehler_behandeln(in_transaktion_ausfuehren(
-            &parts.uri,
-            &conn,
-            move |uri, txn| handler(uri, from_slice(body.as_ref())?, txn),
-        )))
-    }))
+    let obj = from_slice(&to_bytes(body).await?)?;
+
+    fehler_behandeln(in_transaktion_ausfuehren(
+        &parts.uri,
+        &conn,
+        move |uri, txn| handler(uri, obj, txn),
+    ))
 }
 
 fn in_transaktion_ausfuehren<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Fallible<T>>(
     uri: &Uri,
-    conn: &Mutex<Connection>,
+    conn: &RefCell<Connection>,
     handler: H,
 ) -> Fallible<Response<Body>> {
-    let mut conn = conn.lock().unwrap();
+    let mut conn = conn.borrow_mut();
     let txn = conn.transaction()?;
 
     let body = to_vec(&handler(uri, &txn)?)?;
 
     txn.commit()?;
 
-    Ok(Response::builder()
+    Response::builder()
         .header(CONTENT_TYPE, "application/json")
         .body(body.into())
-        .unwrap())
+        .map_err(Into::into)
 }
 
-fn fehler_behandeln(resp: Fallible<Response<Body>>) -> Response<Body> {
+fn fehler_behandeln(resp: Antwort) -> Antwort {
     match resp {
-        Ok(resp) => resp,
+        Ok(resp) => Ok(resp),
 
         Err(err) => {
             eprintln!("Internal server error: {}", err);
@@ -174,7 +205,7 @@ fn fehler_behandeln(resp: Fallible<Response<Body>>) -> Response<Body> {
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header(CONTENT_TYPE, "text/plain")
                 .body(err.to_string().into())
-                .unwrap()
+                .map_err(Into::into)
         }
     }
 }

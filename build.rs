@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 #[cfg(feature = "build-ui")]
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    const MODULES: &[&'static str] = &["Pflegemittel", "NeueBestellung"];
+    const MODULES: &[&str] = &["Pflegemittel", "NeueBestellung"];
 
     for module in MODULES {
         let compiled = Command::new("node_modules/elm/bin/elm")
@@ -49,9 +49,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
         if file_name.as_bytes().ends_with(b".elm") {
             let mut stdout = stdout();
-            stdout.write(b"cargo:rerun-if-changed=src/")?;
-            stdout.write(file_name.as_bytes())?;
-            stdout.write(b"\n")?;
+            stdout.write_all(b"cargo:rerun-if-changed=src/")?;
+            stdout.write_all(file_name.as_bytes())?;
+            stdout.write_all(b"\n")?;
         }
     }
 
