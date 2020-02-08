@@ -1,10 +1,11 @@
 use std::cell::RefCell;
-use std::convert::Infallible;
+use std::convert::{Infallible, TryInto};
 use std::error::Error;
 use std::future::Future;
 use std::num::ParseIntError;
 use std::rc::Rc;
 use std::str::FromStr;
+use std::time::SystemTime;
 
 use hyper::{
     body::{to_bytes, Body},
@@ -16,7 +17,6 @@ use hyper::{
 use rusqlite::{Connection, Transaction};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::{from_slice, to_vec};
-use time::get_time;
 use tokio::{
     runtime::Builder,
     task::{spawn_local, LocalSet},
@@ -113,7 +113,7 @@ fn pflegemittel_laden(uri: &Uri, conn: &RefCell<Connection>) -> Antwort {
 
 async fn pflegemittel_speichern(req: Request<Body>, conn: &RefCell<Connection>) -> Antwort {
     anfrage_mit_objekt_verarbeiten(req, conn, |_, pflegemittel, txn| {
-        datenbank::pflegemittel_speichern(txn, pflegemittel, get_time().sec)?;
+        datenbank::pflegemittel_speichern(txn, pflegemittel, zeitstempel())?;
         datenbank::pflegemittel_laden(txn)
     })
     .await
@@ -133,7 +133,7 @@ async fn bestellung_versenden(req: Request<Body>, conn: &RefCell<Connection>) ->
         let anbieter = parse_anbieter(uri)?;
         let bis_zu = parse_bis_zu(uri)?;
 
-        let bestellung = datenbank::bestellung_speichern(txn, bestellung, get_time().sec)?;
+        let bestellung = datenbank::bestellung_speichern(txn, bestellung, zeitstempel())?;
         versenden::bestellung_versenden(txn, bestellung)?;
         datenbank::bestellungen_laden(txn, anbieter, bis_zu)
     })
@@ -232,4 +232,13 @@ fn parse_param<T: FromStr<Err = ParseIntError>>(
     }
 
     Ok(def_val)
+}
+
+fn zeitstempel() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .try_into()
+        .unwrap()
 }
