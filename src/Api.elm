@@ -37,6 +37,7 @@ type alias Bestellung =
     { id : Int
     , anbieterId : Int
     , empfaenger : String
+    , empfangsbestaetigung : Bool
     , nachricht : String
     , posten : List BestellungPosten
     }
@@ -106,10 +107,11 @@ encodeBestellungPosten posten =
 
 decodeBestellung : Decode.Decoder Bestellung
 decodeBestellung =
-    Decode.map5 Bestellung
+    Decode.map6 Bestellung
         (Decode.field "id" Decode.int)
         (Decode.field "anbieter_id" Decode.int)
         (Decode.field "empfaenger" Decode.string)
+        (Decode.field "empfangsbestaetigung" Decode.bool)
         (Decode.field "nachricht" Decode.string)
         (Decode.field "posten" (Decode.list decodeBestellungPosten))
 
@@ -120,6 +122,7 @@ encodeBestellung bestellung =
         [ ( "id", encodeId bestellung.id )
         , ( "anbieter_id", Encode.int bestellung.anbieterId )
         , ( "empfaenger", Encode.string bestellung.empfaenger )
+        , ( "empfangsbestaetigung", Encode.bool bestellung.empfangsbestaetigung )
         , ( "nachricht", Encode.string bestellung.nachricht )
         , ( "posten", Encode.list encodeBestellungPosten bestellung.posten )
         ]

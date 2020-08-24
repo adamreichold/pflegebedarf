@@ -4,7 +4,7 @@ import Api exposing (Anbieter, Bestellung, BestellungPosten, Pflegemittel, anbie
 import Browser
 import Dict exposing (Dict)
 import Html exposing (Attribute, Html, text)
-import Ui exposing (auswahlfeld, emailfeld, formular, p, tabelle, textbereich, zahlenfeld)
+import Ui exposing (auswahlfeld, emailfeld, formular, optionsfeld, p, tabelle, textbereich, zahlenfeld)
 
 
 main =
@@ -36,6 +36,7 @@ type Msg
     | BestellungenLaden (Result String (List Bestellung))
     | AnbieterWaehlen String
     | EmpfaengerAendern String
+    | EmpfangsbestaetigungAendern Bool
     | NachrichtAendern String
     | MengeAendern Int String
     | NeueBestellungVersenden
@@ -97,6 +98,9 @@ neueBestellungAnlegen anbieter pflegemittel letzteBestellung =
         empfaenger =
             Maybe.withDefault "" <| Maybe.map .empfaenger letzteBestellung
 
+        empfangsbestaetigung =
+            Maybe.withDefault False <| Maybe.map .empfangsbestaetigung letzteBestellung
+
         nachricht =
             Maybe.withDefault "" <| Maybe.map .nachricht letzteBestellung
 
@@ -106,7 +110,7 @@ neueBestellungAnlegen anbieter pflegemittel letzteBestellung =
         posten =
             List.map neuerPosten <| List.map .id pflegemittel
     in
-    Bestellung 0 anbieter empfaenger nachricht posten
+    Bestellung 0 anbieter empfaenger empfangsbestaetigung nachricht posten
 
 
 pflegemittelAuswerten : Model -> List Pflegemittel -> Model
@@ -207,6 +211,9 @@ update msg model =
         EmpfaengerAendern empfaenger ->
             ( neueBestellungAendern model <| \val -> { val | empfaenger = empfaenger }, Cmd.none )
 
+        EmpfangsbestaetigungAendern empfangsbestaetigung ->
+            ( neueBestellungAendern model <| \val -> { val | empfangsbestaetigung = empfangsbestaetigung }, Cmd.none )
+
         NachrichtAendern nachricht ->
             ( neueBestellungAendern model <| \val -> { val | nachricht = nachricht }, Cmd.none )
 
@@ -244,6 +251,7 @@ view model =
             , p [] [ auswahlfeld anbieterBezeichnungen gewaehlterAnbieter AnbieterWaehlen ]
             , p [] [ emailfeld "Empfänger" model.neueBestellung.empfaenger EmpfaengerAendern ]
             , p [] [ textbereich "Nachricht" model.neueBestellung.nachricht NachrichtAendern ]
+            , p [] <| optionsfeld "Empfangsbestätigung" model.neueBestellung.empfangsbestaetigung EmpfangsbestaetigungAendern
             ]
     in
     formular NeueBestellungVersenden "Versenden" absendenEnabled inhalt model.meldung model.letzterFehler

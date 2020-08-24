@@ -27,6 +27,7 @@ pub struct Bestellung {
     pub anbieter_id: i64,
     pub zeitstempel: Option<i64>,
     pub empfaenger: String,
+    pub empfangsbestaetigung: bool,
     pub nachricht: String,
     pub posten: Vec<Posten>,
 }

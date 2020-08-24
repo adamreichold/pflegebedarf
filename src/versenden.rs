@@ -48,12 +48,16 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallib
     let posten = posten_formatieren(txn, bestellung.posten)?;
 
     let mut email = EmailBuilder::new()
-        .to(parse_mailbox(bestellung.empfaenger))
-        .from(parse_mailbox(config.von))
-        .reply_to(parse_mailbox(config.antwort));
+        .to(parse_mailbox(&bestellung.empfaenger))
+        .from(parse_mailbox(&config.von))
+        .reply_to(parse_mailbox(&config.antwort));
 
-    for kopie in config.kopien {
+    for kopie in &config.kopien {
         email = email.cc(parse_mailbox(kopie));
+    }
+
+    if bestellung.empfangsbestaetigung {
+        email = email.header(("Disposition-Notification-To", config.antwort));
     }
 
     email = email
@@ -116,7 +120,7 @@ fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Fallible<String
     Ok(stichpunkte)
 }
 
-fn parse_mailbox(mbox: String) -> Mailbox {
+fn parse_mailbox(mbox: &str) -> Mailbox {
     if let Some(begin) = mbox.find('<') {
         if let Some(end) = mbox.rfind('>') {
             if begin < end {
@@ -124,13 +128,13 @@ fn parse_mailbox(mbox: String) -> Mailbox {
                 let addr = mbox[begin + 1..end].trim();
 
                 if !name.is_empty() && !addr.is_empty() {
-                    return Mailbox::new_with_name(name.to_string(), addr.to_string());
+                    return Mailbox::new_with_name(name.to_owned(), addr.to_owned());
                 }
             }
         }
     }
 
-    Mailbox::new(mbox)
+    Mailbox::new(mbox.to_owned())
 }
 
 #[cfg(test)]
@@ -172,16 +176,16 @@ mod tests {
     #[test]
     fn check_mailbox_without_alias() {
         assert_eq!(
-            Mailbox::new("foo@bar.org".to_string()),
-            parse_mailbox("foo@bar.org".to_string())
+            Mailbox::new("foo@bar.org".to_owned()),
+            parse_mailbox("foo@bar.org")
         );
     }
 
     #[test]
     fn check_mailbox_with_alias() {
         assert_eq!(
-            Mailbox::new_with_name("foobar".to_string(), "foo@bar.org".to_string()),
-            parse_mailbox("foobar <foo@bar.org>".to_string())
+            Mailbox::new_with_name("foobar".to_owned(), "foo@bar.org".to_owned()),
+            parse_mailbox("foobar <foo@bar.org>")
         );
     }
 }

@@ -45,6 +45,7 @@ impl FromRow for Bestellung {
             anbieter_id: row.get("anbieter_id")?,
             zeitstempel: row.get("zeitstempel")?,
             empfaenger: row.get("empfaenger")?,
+            empfangsbestaetigung: row.get("empfangsbestaetigung")?,
             nachricht: row.get("nachricht")?,
             posten: Vec::new(),
         })
@@ -158,6 +159,20 @@ PRAGMA user_version = 8;
         txn.commit()?;
     }
 
+    if user_version < 9 {
+        let txn = conn.transaction()?;
+
+        txn.execute_batch(
+            r#"
+ALTER TABLE bestellungen ADD COLUMN empfangsbestaetigung INTEGER NOT NULL DEFAULT 0;
+
+PRAGMA user_version = 9;
+            "#,
+        )?;
+
+        txn.commit()?;
+    }
+
     Ok(conn)
 }
 
@@ -248,7 +263,7 @@ pub fn bestellung_speichern(
     mut bestellung: Bestellung,
     zeitstempel: i64,
 ) -> Fallible<Bestellung> {
-    let mut b_stmt = txn.prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?, ?)")?;
+    let mut b_stmt = txn.prepare("INSERT INTO bestellungen VALUES (?, ?, ?, ?, ?, ?)")?;
 
     let mut bp_stmt = txn.prepare("INSERT INTO bestellungen_posten VALUES (?, ?, ?)")?;
 
@@ -261,6 +276,7 @@ pub fn bestellung_speichern(
         &bestellung.empfaenger,
         &bestellung.nachricht,
         &bestellung.anbieter_id,
+        &bestellung.empfangsbestaetigung,
     ])?;
 
     bestellung.id = Some(txn.last_insert_rowid());
