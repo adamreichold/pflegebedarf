@@ -7,7 +7,7 @@ use lettre::{
     Transport,
 };
 use lettre_email::{EmailBuilder, Mailbox};
-use rusqlite::{Transaction, NO_PARAMS};
+use rusqlite::{params, Transaction};
 use serde_derive::Deserialize;
 use serde_json::from_reader;
 
@@ -77,7 +77,10 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallib
         .send(email)
         .map_err(|err| format!("Konnte E-Mail nicht versenden: {}", err))?;
 
-    txn.execute("UPDATE pflegemittel SET wurde_gezaehlt = 0", NO_PARAMS)?;
+    txn.execute(
+        "UPDATE pflegemittel SET wurde_gezaehlt = 0 WHERE anbieter_id = ?",
+        params![bestellung.anbieter_id],
+    )?;
 
     Ok(())
 }
