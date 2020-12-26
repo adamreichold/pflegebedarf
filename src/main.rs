@@ -42,7 +42,7 @@ fn main() -> Fallible<()> {
     }
 
     LocalSet::new().block_on(
-        &mut Builder::new().enable_all().basic_scheduler().build()?,
+        &Builder::new_current_thread().enable_all().build()?,
         async move {
             let service = make_service_fn(move |_| {
                 let conn = conn.clone();
