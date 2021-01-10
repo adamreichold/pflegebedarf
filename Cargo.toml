@@ -1,9 +1,10 @@
 [package]
 name = "pflegebedarf"
-authors = ["Adam Reichold <adam.reichold@t-online.de>"]
 version = "0.1.0"
+authors = ["Adam Reichold <adam.reichold@t-online.de>"]
+license = "GPL-3.0"
+repository = "https://github.com/adamreichold/pflegebedarf"
 edition = "2018"
-publish = false
 
 [features]
 default = ["build-ui"]

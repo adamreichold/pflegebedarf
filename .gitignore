@@ -1,9 +1,7 @@
 /target*/
-Cargo.lock
 
 /node_modules/
 /elm-stuff/
-package-lock.json
 
 datenbank.sqlite
 versenden.json
