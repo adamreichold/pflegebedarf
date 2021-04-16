@@ -1,6 +1,4 @@
-use rusqlite::{
-    types::ToSql, Connection, Result as SqlResult, Row, Statement, Transaction, NO_PARAMS,
-};
+use rusqlite::{types::ToSql, Connection, Result as SqlResult, Row, Statement, Transaction};
 
 use crate::{
     modell::{Anbieter, Bestellung, Pflegemittel, Posten},
@@ -74,7 +72,7 @@ fn collect_rows<T: FromRow>(stmt: &mut Statement, params: &[&dyn ToSql]) -> Fall
 pub fn schema_anlegen() -> Fallible<Connection> {
     let mut conn = Connection::open("datenbank.sqlite")?;
 
-    let user_version: u32 = conn.query_row("PRAGMA user_version", NO_PARAMS, |row| row.get(0))?;
+    let user_version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
 
     if user_version < 6 {
         let txn = conn.transaction()?;
