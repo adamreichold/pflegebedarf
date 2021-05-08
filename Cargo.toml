@@ -5,6 +5,7 @@ authors = ["Adam Reichold <adam.reichold@t-online.de>"]
 license = "GPL-3.0"
 repository = "https://github.com/adamreichold/pflegebedarf"
 edition = "2018"
+resolver = "2"
 
 [features]
 default = ["build-ui"]
