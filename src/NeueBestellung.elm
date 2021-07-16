@@ -142,7 +142,7 @@ anbieterWaehlen : Model -> String -> Model
 anbieterWaehlen model neuerAnbieter =
     case String.toInt neuerAnbieter of
         Just anbieter ->
-            { model | gewaehlterAnbieter = anbieter }
+            { model | gewaehlterAnbieter = anbieter, meldung = "" }
 
         Nothing ->
             model
