@@ -171,7 +171,7 @@ async fn anfrage_mit_objekt_verarbeiten<
 
     fehler_behandeln(in_transaktion_ausfuehren(
         &parts.uri,
-        &conn,
+        conn,
         move |uri, txn| handler(uri, obj, txn),
     ))
 }

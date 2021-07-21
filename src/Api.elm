@@ -24,6 +24,7 @@ type alias Pflegemittel =
     , vorhandeneMenge : Int
     , wirdVerwendet : Bool
     , wurdeGezaehlt : Bool
+    , reihenfolge : Int
     }
 
 
@@ -72,6 +73,7 @@ decodePflegemittel =
         |> andMap (Decode.field "vorhandene_menge" Decode.int)
         |> andMap (Decode.field "wird_verwendet" Decode.bool)
         |> andMap (Decode.field "wurde_gezaehlt" Decode.bool)
+        |> andMap (Decode.field "reihenfolge" Decode.int)
 
 
 encodePflegemittel : Pflegemittel -> Encode.Value
@@ -87,6 +89,7 @@ encodePflegemittel pflegemittel =
         , ( "vorhandene_menge", Encode.int pflegemittel.vorhandeneMenge )
         , ( "wird_verwendet", Encode.bool pflegemittel.wirdVerwendet )
         , ( "wurde_gezaehlt", Encode.bool pflegemittel.wurdeGezaehlt )
+        , ( "reihenfolge", Encode.int pflegemittel.reihenfolge )
         ]
 
 

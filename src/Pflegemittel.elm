@@ -67,8 +67,14 @@ eigenschaftAendern allePflegemittel id aenderung =
 pflegemittelAuswerten : Model -> List Pflegemittel -> Model
 pflegemittelAuswerten model pflegemittel =
     let
+        sortiertePflegemittel =
+            List.sortBy (\val -> val.reihenfolge) pflegemittel
+
+        amEndeEinfuegen =
+            List.map (\val -> val.reihenfolge) sortiertePflegemittel |> List.foldl (\curr prev -> curr) -1
+
         mitNeuemPflegemittel =
-            pflegemittel ++ [ Pflegemittel 0 0 "" "" "" "" 0 0 True False ]
+            sortiertePflegemittel ++ [ Pflegemittel 0 0 "" "" "" "" 0 0 True False amEndeEinfuegen ]
     in
     { model
         | pflegemittel = mitNeuemPflegemittel

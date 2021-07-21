@@ -32,6 +32,7 @@ impl FromRow for Pflegemittel {
             vorhandene_menge: row.get("vorhandene_menge")?,
             wird_verwendet: row.get("wird_verwendet")?,
             wurde_gezaehlt: row.get("wurde_gezaehlt")?,
+            reihenfolge: row.get("reihenfolge")?,
         })
     }
 }
@@ -171,6 +172,22 @@ PRAGMA user_version = 9;
         txn.commit()?;
     }
 
+    if user_version < 10 {
+        let txn = conn.transaction()?;
+
+        txn.execute_batch(
+            r#"
+ALTER TABLE pflegemittel ADD COLUMN reihenfolge INTEGER NOT NULL DEFAULT -1;
+
+UPDATE pflegemittel SET reihenfolge = id;
+
+PRAGMA user_version = 10;
+            "#,
+        )?;
+
+        txn.commit()?;
+    }
+
     Ok(conn)
 }
 
@@ -207,7 +224,7 @@ pub fn pflegemittel_speichern(
     zeitstempel: i64,
 ) -> Fallible<()> {
     let mut pm_stmt =
-        txn.prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?)")?;
+        txn.prepare("INSERT OR REPLACE INTO pflegemittel VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")?;
 
     let mut pmb_stmt = txn.prepare("INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)")?;
 
@@ -221,6 +238,7 @@ pub fn pflegemittel_speichern(
             &pm.wird_verwendet,
             &pm.wurde_gezaehlt,
             &pm.anbieter_id,
+            &pm.reihenfolge,
         ])?;
 
         pm.id = Some(txn.last_insert_rowid());

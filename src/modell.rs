@@ -19,6 +19,7 @@ pub struct Pflegemittel {
     pub vorhandene_menge: u32,
     pub wird_verwendet: bool,
     pub wurde_gezaehlt: bool,
+    pub reihenfolge: i64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
