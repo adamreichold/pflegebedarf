@@ -4,8 +4,7 @@ version = "0.1.0"
 authors = ["Adam Reichold <adam.reichold@t-online.de>"]
 license = "GPL-3.0"
 repository = "https://github.com/adamreichold/pflegebedarf"
-edition = "2018"
-resolver = "2"
+edition = "2021"
 
 [features]
 default = ["build-ui"]
@@ -20,7 +19,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 lettre = "0.9"
 lettre_email = "0.9"
-rusqlite = "0.25"
+rusqlite = "0.26"
 chrono = { version = "0.4", default-features = false }
 
 [build-dependencies]
@@ -30,5 +29,5 @@ rayon = "1.0"
 [profile.release]
 lto = true
 codegen-units = 1
-opt-level = "z"
+opt-level = "s"
 panic = "abort"
