@@ -1,6 +1,4 @@
 /target*/
-
-/node_modules/
 /elm-stuff/
 
 datenbank.sqlite
