@@ -3,10 +3,13 @@ use std::fs::File;
 
 use chrono::{Local, TimeZone};
 use lettre::{
-    smtp::{authentication::Credentials, SmtpClient, SmtpTransport},
-    Transport,
+    message::{
+        header::{ContentType, Header, HeaderName, HeaderValue},
+        Mailbox, MessageBuilder, SinglePart,
+    },
+    transport::smtp::authentication::Credentials,
+    SmtpTransport, Transport,
 };
-use lettre_email::{EmailBuilder, Mailbox};
 use rusqlite::{params, Transaction};
 use serde_derive::Deserialize;
 use serde_json::from_reader;
@@ -47,34 +50,32 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallib
 
     let posten = posten_formatieren(txn, bestellung.posten)?;
 
-    let mut email = EmailBuilder::new()
-        .to(parse_mailbox(&bestellung.empfaenger))
-        .from(parse_mailbox(&config.von))
-        .reply_to(parse_mailbox(&config.antwort));
+    let mut email = MessageBuilder::new()
+        .to(bestellung.empfaenger.parse()?)
+        .from(config.von.parse()?)
+        .reply_to(config.antwort.parse()?);
 
     for kopie in &config.kopien {
-        email = email.cc(parse_mailbox(kopie));
+        email = email.cc(kopie.parse()?);
     }
 
     if bestellung.empfangsbestaetigung {
-        email = email.header(("Disposition-Notification-To", config.antwort));
+        email = email.header(DispositionNotificationTo::parse(&config.antwort)?);
     }
 
-    email = email
-        .subject(config.betreff.replace("{datum}", &datum))
-        .text(bestellung.nachricht.replace("{posten}", &posten));
-
     let email = email
+        .subject(config.betreff.replace("{datum}", &datum))
+        .singlepart(
+            SinglePart::builder()
+                .header(ContentType::TEXT_PLAIN)
+                .body(bestellung.nachricht.replace("{posten}", &posten)),
+        )
+        .map_err(|err| format!("Konnte E-Mail nicht erstellen: {}", err))?;
+
+    SmtpTransport::relay(&config.smtp.domain)?
+        .credentials(Credentials::new(config.smtp.username, config.smtp.password))
         .build()
-        .map_err(|err| format!("Konnte E-Mail nicht erstellen: {}", err))?
-        .into();
-
-    let smtp_client = SmtpClient::new_simple(&config.smtp.domain)
-        .map_err(|err| format!("Konnte SMTP-Verbindung nicht aufbauen: {}", err))?
-        .credentials(Credentials::new(config.smtp.username, config.smtp.password));
-
-    SmtpTransport::new(smtp_client)
-        .send(email)
+        .send(&email)
         .map_err(|err| format!("Konnte E-Mail nicht versenden: {}", err))?;
 
     txn.execute(
@@ -123,27 +124,28 @@ fn posten_formatieren(txn: &Transaction, posten: Vec<Posten>) -> Fallible<String
     Ok(stichpunkte)
 }
 
-fn parse_mailbox(mbox: &str) -> Mailbox {
-    if let Some(begin) = mbox.find('<') {
-        if let Some(end) = mbox.rfind('>') {
-            if begin < end {
-                let name = mbox[..begin].trim();
-                let addr = mbox[begin + 1..end].trim();
+#[derive(Clone)]
+struct DispositionNotificationTo(Mailbox);
 
-                if !name.is_empty() && !addr.is_empty() {
-                    return Mailbox::new_with_name(name.to_owned(), addr.to_owned());
-                }
-            }
-        }
+impl Header for DispositionNotificationTo {
+    fn name() -> HeaderName {
+        HeaderName::new_from_ascii_str("Disposition-Notification-To")
     }
 
-    Mailbox::new(mbox.to_owned())
+    fn parse(mailbox: &str) -> Fallible<Self> {
+        Ok(Self(mailbox.parse()?))
+    }
+
+    fn display(&self) -> HeaderValue {
+        HeaderValue::new(Self::name(), self.0.to_string())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use lettre::Address;
     use serde_json::from_str;
 
     #[test]
@@ -179,16 +181,19 @@ mod tests {
     #[test]
     fn check_mailbox_without_alias() {
         assert_eq!(
-            Mailbox::new("foo@bar.org".to_owned()),
-            parse_mailbox("foo@bar.org")
+            Mailbox::new(None, Address::new("foo", "bar.org").unwrap()),
+            "foo@bar.org".parse::<Mailbox>().unwrap(),
         );
     }
 
     #[test]
     fn check_mailbox_with_alias() {
         assert_eq!(
-            Mailbox::new_with_name("foobar".to_owned(), "foo@bar.org".to_owned()),
-            parse_mailbox("foobar <foo@bar.org>")
+            Mailbox::new(
+                Some("foobar".to_owned()),
+                Address::new("foo", "bar.org").unwrap()
+            ),
+            "foobar <foo@bar.org>".parse::<Mailbox>().unwrap(),
         );
     }
 }
