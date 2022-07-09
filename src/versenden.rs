@@ -1,7 +1,6 @@
 use std::fmt::Write;
 use std::fs::File;
 
-use chrono::{Local, TimeZone};
 use lettre::{
     message::{
         header::{ContentType, Header, HeaderName, HeaderValue},
@@ -13,6 +12,7 @@ use lettre::{
 use rusqlite::{params, Transaction};
 use serde_derive::Deserialize;
 use serde_json::from_reader;
+use time::{macros::format_description, OffsetDateTime, UtcOffset};
 
 use crate::{
     datenbank::posten_laden,
@@ -43,10 +43,9 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallib
 
     let config: Config = from_reader(File::open("versenden.json")?)?;
 
-    let datum = Local
-        .timestamp(bestellung.zeitstempel.unwrap(), 0)
-        .format("%d.%m.%Y")
-        .to_string();
+    let datum = OffsetDateTime::from_unix_timestamp(bestellung.zeitstempel.unwrap())?
+        .to_offset(UtcOffset::current_local_offset()?)
+        .format(format_description!("[day].[month].[year]"))?;
 
     let posten = posten_formatieren(txn, bestellung.posten)?;
 
