@@ -229,7 +229,7 @@ pub fn pflegemittel_speichern(
     let mut pmb_stmt = txn.prepare("INSERT INTO pflegemittel_bestand VALUES (?, ?, ?, ?)")?;
 
     for mut pm in pflegemittel {
-        pm_stmt.execute(&[
+        pm_stmt.execute([
             &pm.id as &dyn ToSql,
             &pm.bezeichnung,
             &pm.einheit,
@@ -244,7 +244,7 @@ pub fn pflegemittel_speichern(
         pm.id = Some(txn.last_insert_rowid());
         pm.zeitstempel = Some(zeitstempel);
 
-        pmb_stmt.execute(&[
+        pmb_stmt.execute([
             &pm.id as &dyn ToSql,
             &pm.zeitstempel,
             &pm.geplanter_verbrauch,
@@ -286,7 +286,7 @@ pub fn bestellung_speichern(
     bestellung.id = None;
     bestellung.zeitstempel = Some(zeitstempel);
 
-    b_stmt.execute(&[
+    b_stmt.execute([
         &bestellung.id as &dyn ToSql,
         &bestellung.zeitstempel,
         &bestellung.empfaenger,
@@ -298,7 +298,7 @@ pub fn bestellung_speichern(
     bestellung.id = Some(txn.last_insert_rowid());
 
     for posten in &bestellung.posten {
-        bp_stmt.execute(&[
+        bp_stmt.execute([
             &bestellung.id as &dyn ToSql,
             &posten.pflegemittel_id,
             &posten.menge,
@@ -324,7 +324,7 @@ ORDER BY pmb.zeitstempel DESC LIMIT 1
     let mut ppm = Vec::new();
 
     for p in posten {
-        let pm = stmt.query_row(&[&p.pflegemittel_id], Pflegemittel::from_row)?;
+        let pm = stmt.query_row([&p.pflegemittel_id], Pflegemittel::from_row)?;
 
         ppm.push((p, pm));
     }
