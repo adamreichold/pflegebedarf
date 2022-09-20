@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::convert::{Infallible, TryInto};
+use std::env::var;
 use std::error::Error;
 use std::future::Future;
+use std::net::SocketAddr;
 use std::num::ParseIntError;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -30,6 +32,8 @@ mod versenden;
 type Fallible<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 fn main() -> Fallible<()> {
+    let bind_addr = var("BIND_ADDR")?.parse::<SocketAddr>()?;
+
     let conn = Rc::new(RefCell::new(datenbank::schema_anlegen()?));
 
     #[derive(Clone, Copy)]
@@ -83,7 +87,7 @@ fn main() -> Fallible<()> {
                 }
             });
 
-            Server::bind(&([0, 0, 0, 0], 8080).into())
+            Server::bind(&bind_addr)
                 .executor(LocalExecutor)
                 .serve(service)
                 .await
