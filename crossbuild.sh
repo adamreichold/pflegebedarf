@@ -1,12 +1,12 @@
 #!/bin/bash -xe
 
-: "${ARCH:=armhf}"
-: "${TARGET:=armv7-unknown-linux-gnueabihf}"
-: "${TARGET_CC:=arm-linux-gnueabihf-gcc}"
+: "${ARCH:=arm64}"
+: "${TARGET:=aarch64-unknown-linux-gnu}"
+: "${TARGET_CC:=aarch64-linux-gnu-gcc}"
 
 cargo check
 
-podman run --interactive --rm --volume $PWD:/src rust:latest /bin/bash -xe <<EOF
+podman run --interactive --rm --volume $PWD:/src rust:bullseye /bin/bash -xe <<EOF
 
 export DEBIAN_FRONTEND="noninteractive"
 
