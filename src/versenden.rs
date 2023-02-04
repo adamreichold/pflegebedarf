@@ -69,13 +69,13 @@ pub fn bestellung_versenden(txn: &Transaction, bestellung: Bestellung) -> Fallib
                 .header(ContentType::TEXT_PLAIN)
                 .body(bestellung.nachricht.replace("{posten}", &posten)),
         )
-        .map_err(|err| format!("Konnte E-Mail nicht erstellen: {}", err))?;
+        .map_err(|err| format!("Konnte E-Mail nicht erstellen: {err}"))?;
 
     SmtpTransport::relay(&config.smtp.domain)?
         .credentials(Credentials::new(config.smtp.username, config.smtp.password))
         .build()
         .send(&email)
-        .map_err(|err| format!("Konnte E-Mail nicht versenden: {}", err))?;
+        .map_err(|err| format!("Konnte E-Mail nicht versenden: {err}"))?;
 
     txn.execute(
         "UPDATE pflegemittel SET wurde_gezaehlt = 0 WHERE anbieter_id = ?",

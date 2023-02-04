@@ -203,7 +203,7 @@ fn fehler_behandeln(resp: Antwort) -> Antwort {
         Ok(resp) => Ok(resp),
 
         Err(err) => {
-            eprintln!("Internal server error: {}", err);
+            eprintln!("Internal server error: {err}");
 
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)

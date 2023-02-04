@@ -10,22 +10,22 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         let compiled = Command::new("elm")
             .arg("make")
             .arg("--optimize")
-            .arg(&format!("--output=target/html/{}.html", module))
-            .arg(&format!("src/{}.elm", module))
+            .arg(&format!("--output=target/html/{module}.html"))
+            .arg(&format!("src/{module}.elm"))
             .status()?;
 
         if !compiled.success() {
-            return Err(format!("Failed to compile UI module {}", module).into());
+            return Err(format!("Failed to compile UI module {module}").into());
         }
 
         let compressed = Command::new("gzip")
             .arg("--force")
             .arg("--best")
-            .arg(format!("target/html/{}.html", module))
+            .arg(format!("target/html/{module}.html"))
             .status()?;
 
         if !compressed.success() {
-            return Err(format!("Failed to compress UI module {}", module).into());
+            return Err(format!("Failed to compress UI module {module}").into());
         }
     }
 
