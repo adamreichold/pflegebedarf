@@ -11,7 +11,7 @@ default = ["build-ui"]
 build-ui = []
 
 [dependencies]
-tokio = "1.0"
+tokio = "1.24"
 hyper = { version = "0.14", features = ["http1", "server", "tcp"] }
 url = "2.0"
 serde = "1.0"
