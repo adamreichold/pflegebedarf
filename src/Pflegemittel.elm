@@ -247,7 +247,7 @@ pflegemittelTabelle : List Pflegemittel -> List ( String, String ) -> Dict Int S
 pflegemittelTabelle allePflegemittel anbieterBezeichnungen ungueltigeVerbraeuche ungueltigeMengen nurVerwendeteZeigen nurUngezaehlteZeigen nurFuerAnbieterZeigen =
     let
         ueberschriften =
-            [ "Bezeichnung", "Einheit", "Anbieter", "Hersteller und Produkt", "PZN oder REF", "geplanter Verbrauch", "vorhandene Menge", "wird verwendet", "wurde gezählt" ]
+            [ "Bezeichnung", "Einheit", "Anbieter", "Hersteller und Produkt", "PZN oder REF", "wird verwendet", "geplanter Verbrauch", "vorhandene Menge", "wurde gezählt" ]
 
         filter =
             \pflegemittel -> pflegemittel.id == 0 || ((not nurVerwendeteZeigen || pflegemittel.wirdVerwendet) && (not nurUngezaehlteZeigen || not pflegemittel.wurdeGezaehlt) && (nurFuerAnbieterZeigen < 0 || pflegemittel.anbieterId == nurFuerAnbieterZeigen))
@@ -287,9 +287,9 @@ pflegemittelZeile pflegemittel anbieterBezeichnungen ungueltigeVerbraeuche ungue
       , auswahlfeld anbieterBezeichnungen anbieterId <| AnbieterAendern pflegemittel.id
       , textfeld pflegemittel.herstellerUndProdukt <| HerstellerUndProduktAendern pflegemittel.id
       , textfeld pflegemittel.pznOderRef <| PznOderRefAendern pflegemittel.id
+      , ankreuzfeld pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
       , zahlenfeld "0" geplanterVerbrauch <| GeplanterVerbrauchAendern pflegemittel.id
       , zahlenfeld "0" vorhandeneMenge <| VorhandeneMengeAendern pflegemittel.id
-      , ankreuzfeld pflegemittel.wirdVerwendet <| WirdVerwendetAendern pflegemittel.id
       , ankreuzfeld pflegemittel.wurdeGezaehlt <| WurdeGezaehltAendern pflegemittel.id
       ]
     )
