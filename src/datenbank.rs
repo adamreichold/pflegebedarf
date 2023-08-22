@@ -267,7 +267,7 @@ pub fn bestellungen_laden(
 
     let mut bestellungen: Vec<Bestellung> = collect_rows(&mut b_stmt, &[&anbieter, &bis_zu])?;
 
-    for mut bestellung in &mut bestellungen {
+    for bestellung in &mut bestellungen {
         bestellung.posten = collect_rows(&mut bp_stmt, &[&bestellung.id])?;
     }
 
