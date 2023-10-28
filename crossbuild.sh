@@ -7,7 +7,7 @@
 
 cargo check
 
-podman run --interactive --rm --volume $PWD:/src rust:bullseye /bin/bash -xe <<EOF
+podman run --interactive --rm --volume $PWD:/src rust:bookworm /bin/bash -xe <<EOF
 
 export DEBIAN_FRONTEND="noninteractive"
 
