@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::convert::{Infallible, TryInto};
 use std::env::var;
 use std::error::Error;
 use std::future::Future;
@@ -9,18 +8,22 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::time::SystemTime;
 
+use http_body_util::{BodyExt, Full};
 use hyper::{
-    body::{to_bytes, Body},
+    body::{Bytes, Incoming},
     header::{CONTENT_ENCODING, CONTENT_TYPE},
     rt::Executor,
-    service::{make_service_fn, service_fn},
-    Method, Request, Response, Server, StatusCode, Uri,
+    server::conn::http1::Builder as ConnBuilder,
+    service::service_fn,
+    Method, Request, Response, StatusCode, Uri,
 };
+use hyper_util::rt::tokio::{TokioIo, TokioTimer};
 use rusqlite::{Connection, Transaction};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::{from_slice, to_vec};
 use tokio::{
-    runtime::Builder,
+    net::TcpListener,
+    runtime::Builder as RuntimeBuilder,
     task::{spawn_local, LocalSet},
 };
 use url::form_urlencoded::parse;
@@ -46,58 +49,70 @@ fn main() -> Fallible<()> {
     }
 
     LocalSet::new().block_on(
-        &Builder::new_current_thread().enable_all().build()?,
+        &RuntimeBuilder::new_current_thread().enable_all().build()?,
         async move {
-            let service = make_service_fn(move |_| {
+            let listener = TcpListener::bind(bind_addr).await?;
+
+            loop {
+                let (socket, _) = listener.accept().await?;
+
                 let conn = conn.clone();
 
-                async move {
-                    Ok::<_, Infallible>(service_fn(move |req| {
-                        let conn = conn.clone();
+                spawn_local(async move {
+                    if let Err(err) = ConnBuilder::new()
+                        .timer(TokioTimer::new())
+                        .serve_connection(
+                            TokioIo::new(socket),
+                            service_fn(move |req| {
+                                let conn = conn.clone();
 
-                        async move {
-                            match (req.method(), req.uri().path()) {
-                                (&Method::GET, "/ui/Pflegemittel") => pflegemittel_anzeigen(),
-                                (&Method::GET, "/ui/NeueBestellung") => neue_bestellung_anlegen(),
+                                async move {
+                                    match (req.method(), req.uri().path()) {
+                                        (&Method::GET, "/ui/Pflegemittel") => {
+                                            pflegemittel_anzeigen()
+                                        }
+                                        (&Method::GET, "/ui/NeueBestellung") => {
+                                            neue_bestellung_anlegen()
+                                        }
 
-                                (&Method::GET, "/api/anbieter") => anbieter_laden(req.uri(), &conn),
+                                        (&Method::GET, "/api/anbieter") => {
+                                            anbieter_laden(req.uri(), &conn)
+                                        }
 
-                                (&Method::GET, "/api/pflegemittel") => {
-                                    pflegemittel_laden(req.uri(), &conn)
+                                        (&Method::GET, "/api/pflegemittel") => {
+                                            pflegemittel_laden(req.uri(), &conn)
+                                        }
+                                        (&Method::POST, "/api/pflegemittel") => {
+                                            pflegemittel_speichern(req, &conn).await
+                                        }
+
+                                        (&Method::GET, "/api/bestellungen") => {
+                                            bestellungen_laden(req.uri(), &conn)
+                                        }
+                                        (&Method::POST, "/api/bestellungen") => {
+                                            bestellung_versenden(req, &conn).await
+                                        }
+
+                                        _ => Response::builder()
+                                            .status(StatusCode::NOT_FOUND)
+                                            .header(CONTENT_TYPE, "text/plain")
+                                            .body("Method or path not found.".into())
+                                            .map_err(Into::into),
+                                    }
                                 }
-                                (&Method::POST, "/api/pflegemittel") => {
-                                    pflegemittel_speichern(req, &conn).await
-                                }
-
-                                (&Method::GET, "/api/bestellungen") => {
-                                    bestellungen_laden(req.uri(), &conn)
-                                }
-                                (&Method::POST, "/api/bestellungen") => {
-                                    bestellung_versenden(req, &conn).await
-                                }
-
-                                _ => Response::builder()
-                                    .status(StatusCode::NOT_FOUND)
-                                    .header(CONTENT_TYPE, "text/plain")
-                                    .body("Method or path not found.".into())
-                                    .map_err(Into::into),
-                            }
-                        }
-                    }))
-                }
-            });
-
-            Server::bind(&bind_addr)
-                .executor(LocalExecutor)
-                .serve(service)
-                .await
+                            }),
+                        )
+                        .await
+                    {
+                        eprintln!("Unhandled internal error: {err}");
+                    }
+                });
+            }
         },
-    )?;
-
-    Ok(())
+    )
 }
 
-type Antwort = Fallible<Response<Body>>;
+type Antwort = Fallible<Response<Full<Bytes>>>;
 
 fn pflegemittel_anzeigen() -> Antwort {
     eingebette_seite_ausliefern(include_bytes!("../target/html/Pflegemittel.html.gz"))
@@ -115,7 +130,7 @@ fn pflegemittel_laden(uri: &Uri, conn: &RefCell<Connection>) -> Antwort {
     anfrage_verarbeiten(uri, conn, |_, txn| datenbank::pflegemittel_laden(txn))
 }
 
-async fn pflegemittel_speichern(req: Request<Body>, conn: &RefCell<Connection>) -> Antwort {
+async fn pflegemittel_speichern(req: Request<Incoming>, conn: &RefCell<Connection>) -> Antwort {
     anfrage_mit_objekt_verarbeiten(req, conn, |_, pflegemittel, txn| {
         datenbank::pflegemittel_speichern(txn, pflegemittel, zeitstempel())?;
         datenbank::pflegemittel_laden(txn)
@@ -132,7 +147,7 @@ fn bestellungen_laden(uri: &Uri, conn: &RefCell<Connection>) -> Antwort {
     })
 }
 
-async fn bestellung_versenden(req: Request<Body>, conn: &RefCell<Connection>) -> Antwort {
+async fn bestellung_versenden(req: Request<Incoming>, conn: &RefCell<Connection>) -> Antwort {
     anfrage_mit_objekt_verarbeiten(req, conn, |uri, bestellung, txn| {
         let anbieter = parse_anbieter(uri)?;
         let bis_zu = parse_bis_zu(uri)?;
@@ -144,11 +159,11 @@ async fn bestellung_versenden(req: Request<Body>, conn: &RefCell<Connection>) ->
     .await
 }
 
-fn eingebette_seite_ausliefern(body: &'static [u8]) -> Fallible<Response<Body>> {
+fn eingebette_seite_ausliefern(body: &'static [u8]) -> Antwort {
     Response::builder()
         .header(CONTENT_TYPE, "text/html")
         .header(CONTENT_ENCODING, "gzip")
-        .body(body.into())
+        .body(Full::new(Bytes::from_static(body)))
         .map_err(Into::into)
 }
 
@@ -165,13 +180,13 @@ async fn anfrage_mit_objekt_verarbeiten<
     T: Serialize,
     H: 'static + Send + FnOnce(&Uri, S, &Transaction) -> Fallible<T>,
 >(
-    req: Request<Body>,
+    req: Request<Incoming>,
     conn: &RefCell<Connection>,
     handler: H,
 ) -> Antwort {
     let (parts, body) = req.into_parts();
 
-    let obj = from_slice(&to_bytes(body).await?)?;
+    let obj = from_slice(&body.collect().await?.to_bytes())?;
 
     fehler_behandeln(in_transaktion_ausfuehren(
         &parts.uri,
@@ -184,7 +199,7 @@ fn in_transaktion_ausfuehren<T: Serialize, H: FnOnce(&Uri, &Transaction) -> Fall
     uri: &Uri,
     conn: &RefCell<Connection>,
     handler: H,
-) -> Fallible<Response<Body>> {
+) -> Antwort {
     let mut conn = conn.borrow_mut();
     let txn = conn.transaction()?;
 

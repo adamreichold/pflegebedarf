@@ -12,13 +12,15 @@ build-ui = []
 
 [dependencies]
 tokio = "1.0"
-hyper = { version = "0.14", features = ["http1", "server", "tcp"] }
+http-body-util = "0.1"
+hyper = { version = "1.2", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 url = "2.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "native-tls", "builder"] }
-rusqlite = "0.30"
+rusqlite = "0.31"
 time = { version = "0.3", features = ["local-offset", "formatting", "macros"] }
 
 [profile.release]
