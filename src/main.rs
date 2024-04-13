@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::env::var;
 use std::error::Error;
-use std::future::Future;
 use std::net::SocketAddr;
 use std::num::ParseIntError;
 use std::rc::Rc;
@@ -12,7 +11,6 @@ use http_body_util::{BodyExt, Full};
 use hyper::{
     body::{Bytes, Incoming},
     header::{CONTENT_ENCODING, CONTENT_TYPE},
-    rt::Executor,
     server::conn::http1::Builder as ConnBuilder,
     service::service_fn,
     Method, Request, Response, StatusCode, Uri,
@@ -38,15 +36,6 @@ fn main() -> Fallible<()> {
     let bind_addr = var("BIND_ADDR")?.parse::<SocketAddr>()?;
 
     let conn = Rc::new(RefCell::new(datenbank::schema_anlegen()?));
-
-    #[derive(Clone, Copy)]
-    struct LocalExecutor;
-
-    impl<F: Future + 'static> Executor<F> for LocalExecutor {
-        fn execute(&self, f: F) {
-            spawn_local(f);
-        }
-    }
 
     LocalSet::new().block_on(
         &RuntimeBuilder::new_current_thread().enable_all().build()?,
