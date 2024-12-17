@@ -10,8 +10,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         let compiled = Command::new("elm")
             .arg("make")
             .arg("--optimize")
-            .arg(&format!("--output=target/html/{module}.html"))
-            .arg(&format!("src/{module}.elm"))
+            .arg(format!("--output=target/html/{module}.html"))
+            .arg(format!("src/{module}.elm"))
             .status()?;
 
         if !compiled.success() {
